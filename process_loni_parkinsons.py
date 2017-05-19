@@ -5,26 +5,42 @@ from csv import reader
 ### This script calls on LONI USC Parkinson's disease data.
 
 data_folder = './data/parkinsons_loni'
+updrs_dct = {} # Dictionary mapping patients to the summed UPDRS scores.
 
 # TODO.
 def read_updrs_file(fname):
     '''
     Reads the scores for all attributes in the MDS-UPDRS file.
     '''
+    global updrs_dct
+    current_patient_set = set([])
     f = open('%s/%s.csv' % (data_folder, fname), 'r')
     for i, line in enumerate(reader(f)):
         if i == 0:
             patno_idx = line.index('PATNO')
-            infodt_idx = line.index('INFODT')
-            orig_entry_idx = line.index('ORIG_ENTRY')
+            event_idx = line.index('EVENT_ID')
+            end_idx = line.index('ORIG_ENTRY')
+            if 'Part_III' in fname:
+                start_idx = line.index('EXAMTM')
+                end_idx = line.index('ANNUAL_TIME_BTW_DOSE_NUPDRS')
+            elif 'Part_IV' in fname:
+                start_idx = line.index('INFODT')
+            else:
+                start_idx = line.index('NUPSOURC')
             continue
-        # Scores are between INFODT and ORIG_ENTRY.
-        # TODO: This is different for part III.
-        line = line[infodt_idx + 1:orig_entry_idx]
-        while '' in line:
-            line.remove('')
-        score_list = map(int, line)
-        print score_list
+        event_id, patno = line[event_idx], line[patno_idx]
+        # Only use the baseline visits. Also skip duplicate entries.
+        if event_id != 'BL' or patno in current_patient_set:
+            continue
+        # Get the score list between the start and end indices.
+        score_list = line[start_idx + 1:end_idx]
+        score_list = [int(score) for score in score_list if score != '' ]
+        # Update the score dictionary.
+        if patno not in updrs_dct:
+            updrs_dct[patno] = 0
+        updrs_dct[patno] += sum(score_list)
+        # Update the list of patients seen in this spreadsheet.
+        current_patient_set.add(patno)
     f.close()
 
 def read_code_file():
@@ -311,12 +327,12 @@ def read_rbd():
     return rbd_dct
 
 def main():
-    # read_updrs_file('MDS_UPDRS_Part_I')
-    # read_updrs_file('MDS_UPDRS_Part_I__Patient_Questionnaire')
-    # read_updrs_file('MDS_UPDRS_Part_II__Patient_Questionnaire')
-    # # part III has a slightly different format.
-    # read_updrs_file('MDS_UPDRS_Part_III__Post_Dose_')
-    # read_updrs_file('MDS_UPDRS_Part_IV')
+    # Sum up the scores to compute a label for each patient.
+    read_updrs_file('MDS_UPDRS_Part_I')
+    read_updrs_file('MDS_UPDRS_Part_I__Patient_Questionnaire')
+    read_updrs_file('MDS_UPDRS_Part_II__Patient_Questionnaire')
+    read_updrs_file('MDS_UPDRS_Part_III__Post_Dose_')
+    read_updrs_file('MDS_UPDRS_Part_IV')
 
     adverse_event_dct = read_adverse_events()
     biospecimen_dct = read_test_analysis('biospecimen')
@@ -338,6 +354,7 @@ def main():
     rbd_dct = read_rbd()
 
     ### TESTS___________________________________________________________________
+    # Test the UPDRS dictionary.
 
     # Test the adverse event dictionary.
     assert adverse_event_dct['3226'] == {'BACK SORENESS':[1.0, 2.0]}
@@ -388,7 +405,7 @@ def main():
     # Test REM behavior disorder dictionary.
     assert rbd_dct['60033'] == {'ONMLATON':[1], 'ONSSRI':[1], 'ONNORSRI':[1]}
     assert rbd_dct['60006'] == {'ONCLNZP':[1]}
-    
+
     print 'Finished tests!'
 
 if __name__ == '__main__':
