@@ -151,7 +151,7 @@ def read_clinical_diagnosis(code_dct):
         # Update the patient's binary column features.
         for col_name_idx, col_idx in enumerate(binary_columns):
             if line[col_idx] == '1':
-                clinical_diagnosis_dct[patno][col_list[col_name_idx]] = 1
+                clinical_diagnosis_dct[patno][col_list[col_name_idx]] = [1]
         # Update the patient's primary diagnosis.
         prim_diag = line[prim_diag_idx]
         # Skip "Other neurological disorder(s) (specify)".
@@ -160,7 +160,7 @@ def read_clinical_diagnosis(code_dct):
         # Decode the primary diagnosis.
         pag_name = line[pag_name_idx]
         prim_diag = code_dct[pag_name]['PRIMDIAG'][prim_diag]
-        clinical_diagnosis_dct[patno][prim_diag] = 1
+        clinical_diagnosis_dct[patno][prim_diag] = [1]
     f.close()
     return clinical_diagnosis_dct
 
@@ -220,15 +220,95 @@ def read_cognitive_categorizations():
         if patno not in cognitive_categorization_dct:
             cognitive_categorization_dct[patno] = {}
         if line[COGDECLN_idx] == '1':
-            cognitive_categorization_dct[patno]['COGDECLN'] = 1
+            cognitive_categorization_dct[patno]['COGDECLN'] = [1]
         if line[FNCDTCOG_idx] == '1':
-            cognitive_categorization_dct[patno]['FNCDTCOG'] = 1
+            cognitive_categorization_dct[patno]['FNCDTCOG'] = [1]
         cog_state = line[COGSTATE_idx]
         if 'COGSTATE' not in cognitive_categorization_dct[patno]:
             cognitive_categorization_dct[patno]['COGSTATE'] = []
         cognitive_categorization_dct[patno]['COGSTATE'] += [int(cog_state)]
     f.close()
     return cognitive_categorization_dct
+
+def read_medical_conditions():
+    '''
+    Maps PATNOs to current medical conditions.
+    '''
+    medical_condition_dct = {}
+    f = open('%s/Current_Medical_Conditions_Log.csv' % data_folder, 'r')
+    for i, line in enumerate(reader(f)):
+        # Process header line.
+        if i == 0:
+            patno_idx = line.index('PATNO')
+            term_idx = line.index('PT_NAME')
+            continue
+        patno = line[patno_idx]
+        if patno not in medical_condition_dct:
+            medical_condition_dct[patno] = {}
+        medical_condition_dct[patno][line[term_idx]] = [1]
+    f.close()
+    return medical_condition_dct
+
+def read_family_history():
+    '''
+    Maps PATNOs to family history of PD.
+    '''
+    family_members = ('BIOMOM', 'BIODAD', 'FULSIB', 'HAFSIB', 'MAGPAR',
+        'PAGPAR', 'MATAU', 'PATAU', 'KIDSNUM')
+    family_history_dct = {}
+    f = open('%s/Family_History__PD_.csv' % data_folder, 'r')
+    for i, line in enumerate(reader(f)):
+        # Process header line.
+        if i == 0:
+            patno_idx = line.index('PATNO')
+            family_idx_lst = [line.index(rel) for rel in family_members]
+            continue
+        patno = line[patno_idx]
+        if patno not in family_history_dct:
+            family_history_dct[patno] = {}
+        for str_idx, relative_idx in enumerate(family_idx_lst):
+            # Skip relatives that have 0 in either numerator or denominator.
+            num_total_rel = line[relative_idx]
+            num_rel_pd = line[relative_idx + 1]
+            if num_total_rel in ['', '0'] or num_rel_pd in ['', '0']:
+                continue
+            num_total_rel = float(num_total_rel)
+            num_rel_pd = float(num_rel_pd)
+
+            # Update the fraction of relatives with PD.
+            relative = family_members[str_idx]
+            if relative not in family_history_dct[patno]:
+                family_history_dct[patno][relative] = []
+            family_history_dct[patno][relative] = [num_rel_pd / num_total_rel]
+    f.close()
+    return family_history_dct
+
+def read_rbd():
+    '''
+    Returns a dictionary mapping PATNOs to the drugs they are using.
+    '''
+    drug_lst = ('ONCLNZP', 'ONBENZ', 'ONMLATON', 'ONSSRI', 'ONNORSRI',
+        'ONTRIADP', 'ONBTABLK')
+    rbd_dct = {}
+    f = open('%s/Features_of_REM_Behavior_Disorder.csv' % data_folder, 'r')
+    for i, line in enumerate(reader(f)):
+        # Process the header line.
+        if i == 0:
+            patno_idx = line.index('PATNO')
+            drug_idx_lst = [line.index(drug) for drug in drug_lst]
+            continue
+        patno = line[patno_idx]
+        for drug_idx, col_idx in enumerate(drug_idx_lst):
+            onDrug = line[col_idx]
+            # Skip drug if patient is not taking it.
+            if onDrug == '0':
+                continue
+            if patno not in rbd_dct:
+                rbd_dct[patno] = {}
+            drug = drug_lst[drug_idx]
+            rbd_dct[patno][drug] = [1]
+    f.close()
+    return rbd_dct
 
 def main():
     # read_updrs_file('MDS_UPDRS_Part_I')
@@ -251,6 +331,12 @@ def main():
 
     medication_dct = read_test_analysis('medication')
 
+    medical_condition_dct = read_medical_conditions()
+
+    family_history_dct = read_family_history()
+
+    rbd_dct = read_rbd()
+
     ### TESTS___________________________________________________________________
 
     # Test the adverse event dictionary.
@@ -271,9 +357,9 @@ def main():
     assert hematology_dct['10874']['Total Protein'] == [63, 73, 67]
 
     # Test the clinical diagnosis and managemenet dictionary.
-    assert clinical_diagnosis_dct['3425']['Motor neuron disease with parkinsonism'] == 1
-    assert clinical_diagnosis_dct['4053']['No PD nor other neurological disorder'] == 1
-    assert clinical_diagnosis_dct['3956']['DCNOMTR'] == 1
+    assert clinical_diagnosis_dct['3425']['Motor neuron disease with parkinsonism'] == [1]
+    assert clinical_diagnosis_dct['4053']['No PD nor other neurological disorder'] == [1]
+    assert clinical_diagnosis_dct['3956']['DCNOMTR'] == [1]
 
     # Test cognitive assessments dictionary.
     assert cognitive_assessment_dct['3154']['HVLTRTTM'] == [577, 919, 593]
@@ -283,13 +369,26 @@ def main():
     # Test cognitive categorizations dictionary.
     assert cognitive_categorization_dct['3000']['COGSTATE'] == [1]
     assert 'FNCDTCOG' not in cognitive_categorization_dct['3057']
-    assert cognitive_categorization_dct['60073']['COGDECLN'] == 1
+    assert cognitive_categorization_dct['60073']['COGDECLN'] == [1]
 
     # Test concomitant medications dictionary.
     assert '"ESTROGEN GEL"' not in medication_dct['50157']
     assert medication_dct['51551']['ACYCLOVIR'] == [500, 400]
     assert medication_dct['52373']['ABILIFY'] == [2, 5]
 
+    # Test medical conditions dictionary.
+    assert medical_condition_dct['3001']['Urinary incontinence'] == [1]
+    assert medical_condition_dct['3008']['Drug hypersensitivity'] == [1]
+
+    # Test family history dictionary.
+    assert family_history_dct['3101']['MAGPAR'] == [0.5]
+    assert family_history_dct['3653']['KIDSNUM'] == [1.0 / 6]
+    assert family_history_dct['52620']['HAFSIB'] == [3.0 / 9]
+
+    # Test REM behavior disorder dictionary.
+    assert rbd_dct['60033'] == {'ONMLATON':[1], 'ONSSRI':[1], 'ONNORSRI':[1]}
+    assert rbd_dct['60006'] == {'ONCLNZP':[1]}
+    
     print 'Finished tests!'
 
 if __name__ == '__main__':
