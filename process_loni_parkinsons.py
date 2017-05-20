@@ -108,14 +108,14 @@ def read_line_orientation():
     '''
     line_orientation_dct = {}
 
-    col_name_lst = ['PATNO', 'EVENT_ID', 'DVS_JLO_MSSAE']
+    feat_name_lst = ['PATNO', 'EVENT_ID', 'DVS_JLO_MSSAE']
     f = open('%s/Benton_Judgment_of_Line_Orientation.csv' % data_folder, 'r')
     it = reader(f)
     # Process the header line.
     header = it.next()
-    col_idx_lst = [header.index(col) for col in col_name_lst]
+    feat_idx_lst = [header.index(feat) for feat in feat_name_lst]
     for line in it:
-        patno, event_id, score = [line[col_idx] for col_idx in col_idx_lst]
+        patno, event_id, score = [line[feat_idx] for feat_idx in feat_idx_lst]
         # Skip patients without UPDRS scores or non-baseline visits.
         if patno not in updrs_dct or event_id != 'BL' or score == '':
             continue
@@ -134,17 +134,17 @@ def read_biospecimen_analysis():
     '''
     biospecimen_dct = {}
 
-    col_name_lst = ['PATNO', 'CLINICAL_EVENT', 'TESTNAME', 'TESTVALUE', 'UNITS']
+    feat_name_lst = ['PATNO', 'CLINICAL_EVENT', 'TESTNAME', 'TESTVALUE', 'UNITS']
     # Make sure that the units are consistent across all tests.
     test_unit_dct = {}
     f = open('%s/Biospecimen_Analysis_Results.csv' % data_folder, 'r')
     it = reader(f)
     # Process the header line.
     header = it.next()
-    col_idx_lst = [header.index(col) for col in col_name_lst]
+    feat_idx_lst = [header.index(feat) for feat in feat_name_lst]
     for line in it:
-        patno, event_id, test_name, test_value, units = (line[col_idx] for
-            col_idx in col_idx_lst)
+        patno, event_id, test_name, test_value, units = (line[feat_idx] for
+            feat_idx in feat_idx_lst)
         # Skip patients without UPDRS scores or non-baseline visits.
         if patno not in updrs_dct or event_id != 'BL':
             continue
@@ -173,90 +173,70 @@ def read_clinical_diagnosis(code_dct):
     '''
     Returns the major clinical diagnosis and additional notes for each patient.
     '''
-    clinical_diagnosis_dct = {}
+    clinical_diag_dct = {}
 
-    col_name_lst = ['PATNO', 'EVENT_ID', 'PAG_NAME', 'PSLVL', 'PRIMDIAG']
-    bin_name_lst = ['DCRTREM', 'DCRIGID', 'DCBRADY', 'DFPGDIST']
+    feat_name_lst = ['PATNO', 'EVENT_ID', 'PAG_NAME', 'PSLVL', 'PRIMDIAG']
+    test_name_lst = ['DCRTREM', 'DCRIGID', 'DCBRADY', 'DFPGDIST']
     f = open('%s/Clinical_Diagnosis_and_Management.csv' % data_folder, 'r')
     it = reader(f)
     # Process the header line.
     header = it.next()
-    col_idx_lst = [header.index(col) for col in col_name_lst]
-    bin_col_idx_lst = [header.index(col) for col in bin_name_lst]
-    # for i, line in enumerate(reader(f)):
+    feat_idx_lst = [header.index(feat) for feat in feat_name_lst]
+    test_idx_lst = [header.index(test) for test in test_name_lst]
     for line in it:
-        # # Process header line.
-        # if i == 0:
-        #     patno_idx = line.index('PATNO')
-        #     pag_name_idx = line.index('PAG_NAME')
-        #     binary_columns = [line.index(col) for col in col_name_lst]
-        #     prim_diag_idx = line.index('PRIMDIAG')
-        #     continue
-        # patno = line[patno_idx]
-        patno, event_id, pag_name, ps_lvl, prim_diag = (line[col_idx] for
-            col_idx in col_idx_lst)
+        patno, event_id, pag_name, ps_lvl, prim_diag = (line[feat_idx] for
+            feat_idx in feat_idx_lst)
         # Skip patients without UPDRS scores or non-baseline visits.
         if patno not in updrs_dct or event_id != 'BL' or ps_lvl != '1':
             continue
         # Update the patient in the dictionary.
-        assert patno not in clinical_diagnosis_dct
-        # if patno not in clinical_diagnosis_dct:
-        clinical_diagnosis_dct[patno] = []
+        assert patno not in clinical_diag_dct
+        clinical_diag_dct[patno] = []
         # Update the patient's binary column features.
-        binary_feat_lst = [line[col_idx] for col_idx in bin_col_idx_lst]
-        for feat_idx, feat_val in enumerate(binary_feat_lst):
-            if feat_val == '1':
-                clinical_diagnosis_dct[patno] += [(bin_name_lst[feat_idx], 1)]
+        test_val_lst = [line[test_idx] for test_idx in test_idx_lst]
+        for test_name_idx, test_val in enumerate(test_val_lst):
+            if test_val == '1':
+                clinical_diag_dct[patno] += [(test_name_lst[test_name_idx], 1)]
 
-        # # Add the patient to the dictionary.
-        # if patno not in clinical_diagnosis_dct:
-        #     clinical_diagnosis_dct[patno] = {}
-        # # Update the patient's binary column features.
-        # for col_name_idx, col_idx in enumerate(binary_columns):
-        #     if line[col_idx] == '1':
-        #         clinical_diagnosis_dct[patno][col_name_lst[col_name_idx]] = [1]
-        # Update the patient's primary diagnosis.
-        # prim_diag = line[prim_diag_idx]
         # Skip "Other neurological disorder(s) (specify)".
         if prim_diag == '97':
             continue
         # Decode the primary diagnosis.
-        # pag_name = line[pag_name_idx]
         prim_diag = code_dct[pag_name]['PRIMDIAG'][prim_diag]
-        # clinical_diagnosis_dct[patno][prim_diag] = [1]
-        clinical_diagnosis_dct[patno] += [(prim_diag, 1)]
+        clinical_diag_dct[patno] += [(prim_diag, 1)]
     f.close()
-    return clinical_diagnosis_dct
+    return clinical_diag_dct
 
 def read_cognitive_assessments():
     '''
     Returns a dictionary mapping PATNOs to cognitive assessment times.
     '''
-    col_list = ['HVLTRTTM', 'HVLTDRTM', 'LNORNTTM', 'SFTTM', 'LNSTM', 'SDMTM']
-
     cognitive_assessment_dct = {}
+
+    feat_name_lst = ('HVLTRTTM', 'HVLTDRTM', 'LNORNTTM', 'SFTTM', 'LNSTM',
+        'SDMTM')
     f = open('%s/Cognitive_Assessments.csv' % data_folder, 'r')
-    for i, line in enumerate(reader(f)):
-        # Process header line.
-        if i == 0:
-            patno_idx = line.index('PATNO')
-            time_columns = [line.index(col) for col in col_list]
+    it = reader(f)
+    # Process the header line.
+    header = it.next()
+    patno_idx, event_idx = header.index('PATNO'), header.index('EVENT_ID')
+    feat_idx_lst = [header.index(feat) for feat in feat_name_lst]
+    for line in it:
+        patno, event_id = line[patno_idx], line[event_idx]
+        if patno not in updrs_dct or event_id != 'BL':
             continue
-        patno = line[patno_idx]
-        # Add patient to dictionary.
-        if patno not in cognitive_assessment_dct:
-            cognitive_assessment_dct[patno] = {}
+        assert patno not in cognitive_assessment_dct
+        cognitive_assessment_dct[patno] = []
+
+        feat_val_lst = [line[feat_idx] for feat_idx in feat_idx_lst]
         # Update patient's cognitive assessments.
-        for col_name_idx, col_idx in enumerate(time_columns):
-            if line[col_idx] == '':
+        for feat_name_idx, feat_val in enumerate(feat_val_lst):
+            if feat_val == '':
                 continue
-            test_time = line[col_idx]
+            test_name = feat_name_lst[feat_name_idx]
             test_time = sum(x * int(t) for x, t in zip([60, 1, 0.01],
-                test_time.split(":")))
-            test_name = col_list[col_name_idx]
-            if test_name not in cognitive_assessment_dct[patno]:
-                cognitive_assessment_dct[patno][test_name] = []
-            cognitive_assessment_dct[patno][test_name] += [(test_time)]
+                feat_val.split(":")))
+            cognitive_assessment_dct[patno] += [(test_name, test_time)]
     f.close()
     return cognitive_assessment_dct
 
@@ -265,32 +245,27 @@ def read_cognitive_categorizations():
     Returns a dictionary mapping PATNOs to cognitive categorizations.
     '''
     cognitive_categorization_dct = {}
+
+    feat_name_lst = ('PATNO', 'EVENT_ID', 'COGDECLN', 'FNCDTCOG', 'COGSTATE',
+        'COGDXCL')
     f = open('%s/Cognitive_Categorization.csv' % data_folder, 'r')
-    for i, line in enumerate(reader(f)):
-        # Process header line.
-        if i == 0:
-            patno_idx = line.index('PATNO')
-            COGDECLN_idx = line.index('COGDECLN')
-            FNCDTCOG_idx = line.index('FNCDTCOG')
-            COGSTATE_idx = line.index('COGSTATE')
-            COGDXCL_idx = line.index('COGDXCL')
-            continue
-        patno = line[patno_idx]
-        confidence = line[COGDXCL_idx] # Level of confidence of diagnosis.
+    it = reader(f)
+    header = it.next()
+    feat_idx_lst = [header.index(feat) for feat in feat_name_lst]
+    for line in it:
+        patno, event_id, decline, fncdtcog, cog_state, cogdxcl = (line[feat_idx]
+            for feat_idx in feat_idx_lst)
+
         # Skip diagnoses with low confidence.
-        if confidence != '1':
+        if patno not in updrs_dct or event_id != 'BL' or cogdxcl != '1':
             continue
-        # Update categorization dictionary.
-        if patno not in cognitive_categorization_dct:
-            cognitive_categorization_dct[patno] = {}
-        if line[COGDECLN_idx] == '1':
-            cognitive_categorization_dct[patno]['COGDECLN'] = [1]
-        if line[FNCDTCOG_idx] == '1':
-            cognitive_categorization_dct[patno]['FNCDTCOG'] = [1]
-        cog_state = line[COGSTATE_idx]
-        if 'COGSTATE' not in cognitive_categorization_dct[patno]:
-            cognitive_categorization_dct[patno]['COGSTATE'] = []
-        cognitive_categorization_dct[patno]['COGSTATE'] += [int(cog_state)]
+        assert patno not in cognitive_categorization_dct
+        cognitive_categorization_dct[patno] = []
+        if decline == '1':
+            cognitive_categorization_dct[patno] += [('COGDECLN', 1)]
+        if fncdtcog == '1':
+            cognitive_categorization_dct[patno] += [('FNCDTCOG', 1)]
+        cognitive_categorization_dct[patno] += [('COGSTATE', int(cog_state))]
     f.close()
     return cognitive_categorization_dct
 
@@ -390,7 +365,7 @@ def main():
     # hematology_dct = read_test_analysis('hematology')
 
     code_dct = read_code_file()
-    clinical_diagnosis_dct = read_clinical_diagnosis(code_dct)
+    clinical_diag_dct = read_clinical_diagnosis(code_dct)
 
     cognitive_assessment_dct = read_cognitive_assessments()
 
@@ -431,23 +406,21 @@ def main():
     # assert hematology_dct['10874']['Total Protein'] == [63, 73, 67]
 
     # Test the clinical diagnosis and managemenet dictionary.
-    # assert clinical_diagnosis_dct['3425']['Motor neuron disease with parkinsonism'] == [1]
-    # assert clinical_diagnosis_dct['4053']['No PD nor other neurological disorder'] == [1]
-    # assert clinical_diagnosis_dct['3956']['DCNOMTR'] == [1]
-    assert clinical_diagnosis_dct['3465'] == [('DCRTREM', 1), ('DCRIGID', 1), ('DCBRADY', 1), ('Idiopathic PD', 1)]
-    assert '3082' not in clinical_diagnosis_dct
-    assert '3326' not in clinical_diagnosis_dct
-    assert clinical_diagnosis_dct['3836'] == [('DCRTREM', 1), ('DCRIGID', 1), ('DCBRADY', 1), ('Idiopathic PD', 1)]
+    assert clinical_diag_dct['3465'] == [('DCRTREM', 1), ('DCRIGID', 1), ('DCBRADY', 1), ('Idiopathic PD', 1)]
+    assert '3082' not in clinical_diag_dct
+    assert '3326' not in clinical_diag_dct
+    assert clinical_diag_dct['3836'] == [('DCRTREM', 1), ('DCRIGID', 1), ('DCBRADY', 1), ('Idiopathic PD', 1)]
 
     # Test cognitive assessments dictionary.
-    assert cognitive_assessment_dct['3154']['HVLTRTTM'] == [577, 919, 593]
-    assert cognitive_assessment_dct['3951']['HVLTDRTM'] == [822, 557]
-    assert cognitive_assessment_dct['41749']['LNSTM'] == [685]
+    assert '3154' not in cognitive_assessment_dct
+    assert '3951' not in cognitive_assessment_dct
+    assert ('LNSTM', 685) in cognitive_assessment_dct['41749']
     
     # Test cognitive categorizations dictionary.
-    assert cognitive_categorization_dct['3000']['COGSTATE'] == [1]
-    assert 'FNCDTCOG' not in cognitive_categorization_dct['3057']
-    assert cognitive_categorization_dct['60073']['COGDECLN'] == [1]
+    assert cognitive_categorization_dct['3026'] == [('COGSTATE', 1)]
+    assert '40709' not in cognitive_categorization_dct
+    assert cognitive_categorization_dct['40755'] == [('COGDECLN', 1), (
+        'FNCDTCOG', 1), ('COGSTATE', 2)]
 
     # # Test concomitant medications dictionary.
     # assert '"ESTROGEN GEL"' not in medication_dct['50157']
