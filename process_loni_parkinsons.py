@@ -105,6 +105,7 @@ def read_line_orientation():
     Returns a dictionary mapping PATNOs to line orientation test results.
     Key: PATNO -> str
     Value: Derived-MOANS (Age and Education) score -> float
+    Not to be used with ProSNet.
     '''
     line_orientation_dct = {}
 
@@ -123,7 +124,6 @@ def read_line_orientation():
         assert patno not in line_orientation_dct
         line_orientation_dct[patno] = [('DVS_JLO_MSSAE', float(score))]
     f.close()
-
     return line_orientation_dct
 
 def read_biospecimen_analysis():
@@ -157,7 +157,7 @@ def read_biospecimen_analysis():
         if test_name not in test_unit_dct:
             test_unit_dct[test_name] = units
         # Skip tests that are not consistent in units.
-        if units != test_unit_dct[test_name]:
+        if units != test_unit_dct[test_name] or test_value == 0:
             continue
         # Update the test results dictionary with the patient.
         if patno not in biospecimen_dct:
@@ -207,38 +207,38 @@ def read_clinical_diagnosis(code_dct):
     f.close()
     return clinical_diag_dct
 
-def read_cognitive_assessments():
-    '''
-    Returns a dictionary mapping PATNOs to cognitive assessment times.
-    '''
-    cognitive_assessment_dct = {}
+# def read_cognitive_assessments():
+#     '''
+#     Returns a dictionary mapping PATNOs to cognitive assessment times.
+#     '''
+#     cognitive_assessment_dct = {}
 
-    feat_name_lst = ('HVLTRTTM', 'HVLTDRTM', 'LNORNTTM', 'SFTTM', 'LNSTM',
-        'SDMTM')
-    f = open('%s/Cognitive_Assessments.csv' % data_folder, 'r')
-    it = reader(f)
-    # Process the header line.
-    header = it.next()
-    patno_idx, event_idx = header.index('PATNO'), header.index('EVENT_ID')
-    feat_idx_lst = [header.index(feat) for feat in feat_name_lst]
-    for line in it:
-        patno, event_id = line[patno_idx], line[event_idx]
-        if patno not in updrs_dct or event_id != 'BL':
-            continue
-        assert patno not in cognitive_assessment_dct
-        cognitive_assessment_dct[patno] = []
+#     feat_name_lst = ('HVLTRTTM', 'HVLTDRTM', 'LNORNTTM', 'SFTTM', 'LNSTM',
+#         'SDMTM')
+#     f = open('%s/Cognitive_Assessments.csv' % data_folder, 'r')
+#     it = reader(f)
+#     # Process the header line.
+#     header = it.next()
+#     patno_idx, event_idx = header.index('PATNO'), header.index('EVENT_ID')
+#     feat_idx_lst = [header.index(feat) for feat in feat_name_lst]
+#     for line in it:
+#         patno, event_id = line[patno_idx], line[event_idx]
+#         if patno not in updrs_dct or event_id != 'BL':
+#             continue
+#         assert patno not in cognitive_assessment_dct
+#         cognitive_assessment_dct[patno] = []
 
-        feat_val_lst = [line[feat_idx] for feat_idx in feat_idx_lst]
-        # Update patient's cognitive assessments.
-        for feat_name_idx, feat_val in enumerate(feat_val_lst):
-            if feat_val == '':
-                continue
-            test_name = feat_name_lst[feat_name_idx]
-            test_time = sum(x * int(t) for x, t in zip([60, 1, 0.01],
-                feat_val.split(":")))
-            cognitive_assessment_dct[patno] += [(test_name, test_time)]
-    f.close()
-    return cognitive_assessment_dct
+#         feat_val_lst = [line[feat_idx] for feat_idx in feat_idx_lst]
+#         # Update patient's cognitive assessments.
+#         for feat_name_idx, feat_val in enumerate(feat_val_lst):
+#             if feat_val == '':
+#                 continue
+#             test_name = feat_name_lst[feat_name_idx]
+#             test_time = sum(x * int(t) for x, t in zip([60, 1, 0.01],
+#                 feat_val.split(":")))
+#             cognitive_assessment_dct[patno] += [(test_name, test_time)]
+#     f.close()
+#     return cognitive_assessment_dct
 
 def read_cognitive_categorizations():
     '''
@@ -269,85 +269,184 @@ def read_cognitive_categorizations():
     f.close()
     return cognitive_categorization_dct
 
-def read_medical_conditions():
+# def read_medical_conditions():
+#     '''
+#     Maps PATNOs to current medical conditions.
+#     '''
+#     medical_condition_dct = {}
+#     f = open('%s/Current_Medical_Conditions_Log.csv' % data_folder, 'r')
+#     for i, line in enumerate(reader(f)):
+#         # Process header line.
+#         if i == 0:
+#             patno_idx = line.index('PATNO')
+#             term_idx = line.index('PT_NAME')
+#             continue
+#         patno = line[patno_idx]
+#         if patno not in medical_condition_dct:
+#             medical_condition_dct[patno] = {}
+#         medical_condition_dct[patno][line[term_idx]] = [1]
+#     f.close()
+#     return medical_condition_dct
+
+def read_epworth_scale():
     '''
-    Maps PATNOs to current medical conditions.
+    Maps PATNOs to epworth sleepiness scales. These are not to be used as
+    features in the ProSNet network.
     '''
-    medical_condition_dct = {}
-    f = open('%s/Current_Medical_Conditions_Log.csv' % data_folder, 'r')
-    for i, line in enumerate(reader(f)):
-        # Process header line.
-        if i == 0:
-            patno_idx = line.index('PATNO')
-            term_idx = line.index('PT_NAME')
+    epworth_dct = {}
+
+    feat_name_lst = ['ESS' + str(i) for i in range(1, 9)]
+    f = open('%s/Epworth_Sleepiness_Scale.csv' % data_folder, 'r')
+    it = reader(f)
+    # Process the header line.
+    header = it.next()
+    patno_idx, event_idx = header.index('PATNO'), header.index('EVENT_ID')
+    feat_idx_lst = [header.index(feat) for feat in feat_name_lst]
+    for line in it:
+        patno, event_id = line[patno_idx], line[event_idx]
+        # Skip non-baseline visits.
+        if patno not in updrs_dct or event_id != 'BL':
             continue
-        patno = line[patno_idx]
-        if patno not in medical_condition_dct:
-            medical_condition_dct[patno] = {}
-        medical_condition_dct[patno][line[term_idx]] = [1]
+        feat_val_lst = [line[feat_idx] for feat_idx in feat_idx_lst]
+        # Update the dictionary with the current patient.
+        assert patno not in epworth_dct
+        epworth_dct[patno] = []
+        for feat_name_idx, feat_val in enumerate(feat_val_lst):
+            if feat_val == '':
+                feat_val = '0'
+            epworth_dct[patno] += [(feat_name_lst[feat_name_idx],
+                float(feat_val))]
     f.close()
-    return medical_condition_dct
+
+    return epworth_dct
 
 def read_family_history():
     '''
-    Maps PATNOs to family history of PD.
+    Maps PATNOs to family history of PD. These are not to be used as features
+    in the ProSNet network.
     '''
     family_members = ('BIOMOM', 'BIODAD', 'FULSIB', 'HAFSIB', 'MAGPAR',
         'PAGPAR', 'MATAU', 'PATAU', 'KIDSNUM')
+
     family_history_dct = {}
     f = open('%s/Family_History__PD_.csv' % data_folder, 'r')
+    it = reader(f)
+    header = it.next()
+    patno_idx = header.index('PATNO')
+    family_idx_lst = [header.index(rel) for rel in family_members]
     for i, line in enumerate(reader(f)):
-        # Process header line.
-        if i == 0:
-            patno_idx = line.index('PATNO')
-            family_idx_lst = [line.index(rel) for rel in family_members]
-            continue
         patno = line[patno_idx]
-        if patno not in family_history_dct:
-            family_history_dct[patno] = {}
-        for str_idx, relative_idx in enumerate(family_idx_lst):
+
+        if patno not in updrs_dct:
+            continue
+        # PATNO 54186 has duplicate entries of BL.
+        assert patno not in family_history_dct or patno == '54186'
+        family_history_dct[patno] = []
+        for name_idx, value_idx in enumerate(family_idx_lst):
             # Skip relatives that have 0 in either numerator or denominator.
-            num_total_rel = line[relative_idx]
-            num_rel_pd = line[relative_idx + 1]
+            num_total_rel = line[value_idx]
+            num_rel_pd = line[value_idx + 1]
             if num_total_rel in ['', '0'] or num_rel_pd in ['', '0']:
                 continue
             num_total_rel = float(num_total_rel)
             num_rel_pd = float(num_rel_pd)
 
             # Update the fraction of relatives with PD.
-            relative = family_members[str_idx]
-            if relative not in family_history_dct[patno]:
-                family_history_dct[patno][relative] = []
-            family_history_dct[patno][relative] = [num_rel_pd / num_total_rel]
+            relative = family_members[name_idx]
+            family_history_dct[patno] += [(relative, num_rel_pd /
+                num_total_rel)]
     f.close()
     return family_history_dct
 
-def read_rbd():
+# def read_rbd():
+#     '''
+#     Returns a dictionary mapping PATNOs to the drugs they are using.
+#     '''
+#     drug_lst = ('ONCLNZP', 'ONBENZ', 'ONMLATON', 'ONSSRI', 'ONNORSRI',
+#         'ONTRIADP', 'ONBTABLK')
+#     rbd_dct = {}
+#     f = open('%s/Features_of_REM_Behavior_Disorder.csv' % data_folder, 'r')
+#     for i, line in enumerate(reader(f)):
+#         # Process the header line.
+#         if i == 0:
+#             patno_idx = line.index('PATNO')
+#             drug_idx_lst = [line.index(drug) for drug in drug_lst]
+#             continue
+#         patno = line[patno_idx]
+#         for drug_idx, col_idx in enumerate(drug_idx_lst):
+#             onDrug = line[col_idx]
+#             # Skip drug if patient is not taking it.
+#             if onDrug == '0':
+#                 continue
+#             if patno not in rbd_dct:
+#                 rbd_dct[patno] = {}
+#             drug = drug_lst[drug_idx]
+#             rbd_dct[patno][drug] = [1]
+#     f.close()
+#     return rbd_dct
+
+def read_neuro_exam():
     '''
-    Returns a dictionary mapping PATNOs to the drugs they are using.
+    Maps PATNOs to their exam results, whether there are any abnormalities.
     '''
-    drug_lst = ('ONCLNZP', 'ONBENZ', 'ONMLATON', 'ONSSRI', 'ONNORSRI',
-        'ONTRIADP', 'ONBTABLK')
-    rbd_dct = {}
-    f = open('%s/Features_of_REM_Behavior_Disorder.csv' % data_folder, 'r')
-    for i, line in enumerate(reader(f)):
-        # Process the header line.
-        if i == 0:
-            patno_idx = line.index('PATNO')
-            drug_idx_lst = [line.index(drug) for drug in drug_lst]
+    neuro_exam_dct = {}
+    exam_name_lst = ('MSRARSP', 'MSLARSP', 'MSRLRSP', 'MSLLRSP', 'COFNRRSP',
+        'COFNLRSP', 'COHSRRSP', 'COHSLRSP', 'SENRARSP', 'SENLARSP', 'SENRLRSP',
+        'SENLLRSP', 'RFLRARSP', 'RFLLARSP', 'RFLRLRSP', 'RFLLLRSP', 'PLRRRSP',
+        'PLRLRSP')
+    f = open('%s/General_Neurological_Exam.csv' % data_folder, 'r')
+    it = reader(f)
+    # Process the header line.
+    header = it.next()
+    patno_idx, event_idx = header.index('PATNO'), header.index('EVENT_ID')
+    exam_idx_lst = [header.index(exam) for exam in exam_name_lst]
+    for line in it:
+        patno, event_id = line[patno_idx], line[event_idx]
+        # Again, a duplicate entry.
+        if patno not in updrs_dct or event_id != 'BL' or patno == '54186':
             continue
-        patno = line[patno_idx]
-        for drug_idx, col_idx in enumerate(drug_idx_lst):
-            onDrug = line[col_idx]
-            # Skip drug if patient is not taking it.
-            if onDrug == '0':
-                continue
-            if patno not in rbd_dct:
-                rbd_dct[patno] = {}
-            drug = drug_lst[drug_idx]
-            rbd_dct[patno][drug] = [1]
+        neuro_exam_dct[patno] = []
+        # Get abnormal values ('1') for each test.
+        exam_val_lst = [line[exam_idx] for exam_idx in exam_idx_lst]
+        for exam_name_idx, exam_val in enumerate(exam_val_lst):
+            if exam_val == '1':
+                neuro_exam_dct[patno] += [(exam_name_lst[exam_name_idx], 1)]
     f.close()
-    return rbd_dct
+    return neuro_exam_dct
+
+def read_hvlt():
+    '''
+    Maps PATNOs to Hopkins Test dictionary. Not to be used with ProSNet.
+    '''
+    hvlt_dct = {}
+
+    score_name_lst = ('DVT_TOTAL_RECALL', 'DVT_DELAYED_RECALL', 'DVT_RETENTION',
+        'DVT_RECOG_DISC_INDEX')
+    f = open('%s/Hopkins_Verbal_Learning_Test.csv' % data_folder, 'r')
+    it = reader(f)
+    # Process the header line.
+    header = it.next()
+    score_idx_lst = [header.index(score_name) for score_name in score_name_lst]
+    patno_idx, event_idx = header.index('PATNO'), header.index('EVENT_ID')
+    comm_idx, age_idx = header.index('comm'), header.index('AGE_ASSESS_HVLT')
+    for line in it:
+        patno, event_id = line[patno_idx], line[event_idx]
+        if patno not in updrs_dct or event_id != 'BL':
+            continue
+        # Skip patients that have comments or do not have age recorded.
+        comment, age = line[comm_idx], line[age_idx]
+        if comment != '' or age == '':
+            continue
+
+        assert patno not in hvlt_dct
+        hvlt_dct[patno] = []
+        # Update patient with scores.
+        score_lst = map(float, [line[score_idx] for score_idx in score_idx_lst])
+        for score_name_idx, score in enumerate(score_lst):
+            hvlt_dct[patno] += [(score_name_lst[score_name_idx], score)]
+    f.close()
+
+    return hvlt_dct
 
 def main():
     # Sum up the scores to compute a label for each patient.
@@ -359,7 +458,10 @@ def main():
 
     # TODO: Currently not doing adverse events, since they don't specify BL.
     # adverse_event_dct = read_adverse_events()
+
+    # Don't use this as features in ProSNet network.
     line_orientation_dct = read_line_orientation()
+
     biospecimen_dct = read_biospecimen_analysis()
     # TODO: No hematology, because no baseline visits in these tests.
     # hematology_dct = read_test_analysis('hematology')
@@ -367,20 +469,26 @@ def main():
     code_dct = read_code_file()
     clinical_diag_dct = read_clinical_diagnosis(code_dct)
 
-    cognitive_assessment_dct = read_cognitive_assessments()
-
     cognitive_categorization_dct = read_cognitive_categorizations()
 
     # TODO: no medication, because no baseline visits.
     # medication_dct = read_test_analysis('medication')
 
-    medical_condition_dct = read_medical_conditions()
+    # cognitive_assessment_dct = read_cognitive_assessments()
+    # medical_condition_dct = read_medical_conditions()
 
+    # Don't use this as features in ProSNet network.
+    epworth_dct = read_epworth_scale()
+    # Don't use this as features in ProSNet network.
     family_history_dct = read_family_history()
+    # Don't use this as features in ProSNet network.
+    hvlt_dct = read_hvlt()
 
-    rbd_dct = read_rbd()
+    # rbd_dct = read_rbd()
 
-    ### TESTS___________________________________________________________________
+    neuro_exam_dct = read_neuro_exam()
+
+    print 'Running tests...'
     # Test the UPDRS dictionary.
 
     # # Test the adverse event dictionary.
@@ -411,10 +519,10 @@ def main():
     assert '3326' not in clinical_diag_dct
     assert clinical_diag_dct['3836'] == [('DCRTREM', 1), ('DCRIGID', 1), ('DCBRADY', 1), ('Idiopathic PD', 1)]
 
-    # Test cognitive assessments dictionary.
-    assert '3154' not in cognitive_assessment_dct
-    assert '3951' not in cognitive_assessment_dct
-    assert ('LNSTM', 685) in cognitive_assessment_dct['41749']
+    # # Test cognitive assessments dictionary.
+    # assert '3154' not in cognitive_assessment_dct
+    # assert '3951' not in cognitive_assessment_dct
+    # assert ('LNSTM', 685) in cognitive_assessment_dct['41749']
     
     # Test cognitive categorizations dictionary.
     assert cognitive_categorization_dct['3026'] == [('COGSTATE', 1)]
@@ -427,18 +535,35 @@ def main():
     # assert medication_dct['51551']['ACYCLOVIR'] == [500, 400]
     # assert medication_dct['52373']['ABILIFY'] == [2, 5]
 
-    # Test medical conditions dictionary.
-    assert medical_condition_dct['3001']['Urinary incontinence'] == [1]
-    assert medical_condition_dct['3008']['Drug hypersensitivity'] == [1]
+    # # Test medical conditions dictionary.
+    # assert medical_condition_dct['3001']['Urinary incontinence'] == [1]
+    # assert medical_condition_dct['3008']['Drug hypersensitivity'] == [1]
+
+    # Test the Epworth sleepiness scale dictionary.
+    assert ('ESS1', 2) in epworth_dct['3000']
+    assert ('ESS2', 1) in epworth_dct['3000']
+    assert ('ESS5', 2) in epworth_dct['3009']
+    assert ('ESS5', 0) in epworth_dct['3636']
+    assert ('ESS4', 3) in epworth_dct['60065']
 
     # Test family history dictionary.
-    assert family_history_dct['3101']['MAGPAR'] == [0.5]
-    assert family_history_dct['3653']['KIDSNUM'] == [1.0 / 6]
-    assert family_history_dct['52620']['HAFSIB'] == [3.0 / 9]
+    assert ('MAGPAR', 0.5) in family_history_dct['3101']
+    assert ('KIDSNUM', 1.0 / 6) in family_history_dct['3653']
+    assert ('HAFSIB', 3.0 / 9) in family_history_dct['52620']
 
-    # Test REM behavior disorder dictionary.
-    assert rbd_dct['60033'] == {'ONMLATON':[1], 'ONSSRI':[1], 'ONNORSRI':[1]}
-    assert rbd_dct['60006'] == {'ONCLNZP':[1]}
+    # # Test REM behavior disorder dictionary.
+    # assert rbd_dct['60033'] == {'ONMLATON':[1], 'ONSSRI':[1], 'ONNORSRI':[1]}
+    # assert rbd_dct['60006'] == {'ONCLNZP':[1]}
+
+    # Test the general neurological exam dictionary.
+    assert ('COFNLRSP', 1) in neuro_exam_dct['42449']
+    assert ('MSRARSP', 0) not in neuro_exam_dct['50813']
+    assert ('MSRARSP', 1) not in neuro_exam_dct['50813']
+
+    # Test Hopkins verbal learning test dictionary.
+    assert ('DVT_TOTAL_RECALL', 37) in hvlt_dct['3502']
+    assert ('DVT_RETENTION', 55) in hvlt_dct['3010']
+    assert ('DVT_DELAYED_RECALL', 32) in hvlt_dct['56680']
 
     print 'Finished tests!'
 
