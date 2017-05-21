@@ -100,17 +100,40 @@ def read_code_file():
 #     f.close()
 #     return adverse_event_dct
 
-def read_line_orientation():
+def read_test_score(test_type):
     '''
-    Returns a dictionary mapping PATNOs to line orientation test results.
+    Returns a dictionary mapping PATNOs to a variety of test results.
+    Includes Benton, letter-number sequencing, modified Schwab-England, and
+    MoCA scores.
     Key: PATNO -> str
     Value: Derived-MOANS (Age and Education) score -> float
     Not to be used with ProSNet.
     '''
-    line_orientation_dct = {}
+    assert test_type in ('benton', 'lns', 'schwab', 'montreal', 'semantic',
+        'symbol')
+    if test_type == 'benton':
+        fname = 'Benton_Judgment_of_Line_Orientation'
+        test_name = 'DVS_JLO_MSSAE'
+    elif test_type == 'lns':
+        fname = 'Letter_-_Number_Sequencing__PD_'
+        test_name = 'DVS_LNS'
+    elif test_type == 'schwab':
+        fname = 'Modified_Schwab_+_England_ADL'
+        test_name = 'MSEADLG'
+    elif test_type == 'montreal':
+        fname = 'Montreal_Cognitive_Assessment__MoCA_'
+        test_name = 'MCATOT'
+    elif test_type == 'semantic':
+        fname = 'Semantic_Fluency'
+        test_name = 'DVS_SFTANIM'
+    elif test_type == 'symbol':
+        fname = 'Symbol_Digit_Modalities'
+        test_name = 'DVSD_SDM'
 
-    feat_name_lst = ['PATNO', 'EVENT_ID', 'DVS_JLO_MSSAE']
-    f = open('%s/Benton_Judgment_of_Line_Orientation.csv' % data_folder, 'r')
+    test_dct = {}
+
+    feat_name_lst = ['PATNO', 'EVENT_ID', test_name]
+    f = open('%s/%s.csv' % (data_folder, fname), 'r')
     it = reader(f)
     # Process the header line.
     header = it.next()
@@ -121,23 +144,30 @@ def read_line_orientation():
         if patno not in updrs_dct or event_id != 'BL' or score == '':
             continue
         # patno, score = line[patno_idx], line[score_idx]
-        assert patno not in line_orientation_dct
-        line_orientation_dct[patno] = [('DVS_JLO_MSSAE', float(score))]
+        assert patno not in test_dct or patno == '54186'
+        test_dct[patno] = [(test_name, float(score))]
     f.close()
-    return line_orientation_dct
+    return test_dct
 
-def read_biospecimen_analysis():
+def read_test_analysis(test_type):
     '''
     Returns a dictionary mapping PATNOs to test results.
     Key: PATNO -> str
     Value: Another dictionary mapping test names to test values.
     '''
-    biospecimen_dct = {}
+    assert test_type in ['biospecimen', 'concom_medications']
+    test_dct = {}
 
-    feat_name_lst = ['PATNO', 'CLINICAL_EVENT', 'TESTNAME', 'TESTVALUE', 'UNITS']
+    if test_type == 'biospecimen':
+        feat_name_lst = ('PATNO', 'CLINICAL_EVENT', 'TESTNAME', 'TESTVALUE',
+            'UNITS')
+        fname = 'Biospecimen_Analysis_Results'
+    elif test_type == 'concom_medications':
+        feat_name_lst = ('PATNO', 'EVENT_ID', 'CMTRT', 'CMDOSE', 'CMDOSU')
+        fname = 'Concomitant_Medications'
     # Make sure that the units are consistent across all tests.
     test_unit_dct = {}
-    f = open('%s/Biospecimen_Analysis_Results.csv' % data_folder, 'r')
+    f = open('%s/%s.csv' % (data_folder, fname), 'r')
     it = reader(f)
     # Process the header line.
     header = it.next()
@@ -145,8 +175,11 @@ def read_biospecimen_analysis():
     for line in it:
         patno, event_id, test_name, test_value, units = (line[feat_idx] for
             feat_idx in feat_idx_lst)
-        # Skip patients without UPDRS scores or non-baseline visits.
-        if patno not in updrs_dct or event_id != 'BL':
+        # Skip patients without UPDRS scores.
+        if patno not in updrs_dct:
+            continue
+        # Only biospecimen data contains BL visits.
+        if test_type == 'biospecimen' and event_id != 'BL':
             continue
         # Attempt converting test value to float.
         try:
@@ -160,14 +193,14 @@ def read_biospecimen_analysis():
         if units != test_unit_dct[test_name] or test_value == 0:
             continue
         # Update the test results dictionary with the patient.
-        if patno not in biospecimen_dct:
-            biospecimen_dct[patno] = {}
-        biospecimen_dct[patno][test_name] = test_value
+        if patno not in test_dct:
+            test_dct[patno] = {}
+        test_dct[patno][test_name] = test_value
     f.close()
     # Convert each patient's dictionary to a set of tuples.
-    for patno in biospecimen_dct:
-        biospecimen_dct[patno] = biospecimen_dct[patno].items()
-    return biospecimen_dct
+    for patno in test_dct:
+        test_dct[patno] = test_dct[patno].items()
+    return test_dct
 
 def read_clinical_diagnosis(code_dct):
     '''
@@ -269,24 +302,27 @@ def read_cognitive_categorizations():
     f.close()
     return cognitive_categorization_dct
 
-# def read_medical_conditions():
-#     '''
-#     Maps PATNOs to current medical conditions.
-#     '''
-#     medical_condition_dct = {}
-#     f = open('%s/Current_Medical_Conditions_Log.csv' % data_folder, 'r')
-#     for i, line in enumerate(reader(f)):
-#         # Process header line.
-#         if i == 0:
-#             patno_idx = line.index('PATNO')
-#             term_idx = line.index('PT_NAME')
-#             continue
-#         patno = line[patno_idx]
-#         if patno not in medical_condition_dct:
-#             medical_condition_dct[patno] = {}
-#         medical_condition_dct[patno][line[term_idx]] = [1]
-#     f.close()
-#     return medical_condition_dct
+def read_medical_conditions():
+    '''
+    Maps PATNOs to current medical conditions.
+    '''
+    medical_condition_dct = {}
+    f = open('%s/Current_Medical_Conditions_Log.csv' % data_folder, 'r')
+    for i, line in enumerate(reader(f)):
+        # Process header line.
+        if i == 0:
+            patno_idx = line.index('PATNO')
+            term_idx = line.index('PT_NAME')
+            resolved_idx = line.index('RESOLVD')
+            continue
+        patno, resolved = line[patno_idx], line[resolved_idx]
+        if patno not in updrs_dct:
+            continue
+        if patno not in medical_condition_dct:
+            medical_condition_dct[patno] = []
+        medical_condition_dct[patno] += [(line[term_idx], 1)]
+    f.close()
+    return medical_condition_dct
 
 def read_epworth_scale():
     '''
@@ -385,16 +421,33 @@ def read_family_history():
 #     f.close()
 #     return rbd_dct
 
-def read_neuro_exam():
+def read_binary_tests(exam_type):
     '''
     Maps PATNOs to their exam results, whether there are any abnormalities.
     '''
-    neuro_exam_dct = {}
-    exam_name_lst = ('MSRARSP', 'MSLARSP', 'MSRLRSP', 'MSLLRSP', 'COFNRRSP',
-        'COFNLRSP', 'COHSRRSP', 'COHSLRSP', 'SENRARSP', 'SENLARSP', 'SENRLRSP',
-        'SENLLRSP', 'RFLRARSP', 'RFLLARSP', 'RFLRLRSP', 'RFLLLRSP', 'PLRRRSP',
-        'PLRLRSP')
-    f = open('%s/General_Neurological_Exam.csv' % data_folder, 'r')
+    assert exam_type in ['neuro', 'pd_features', 'rem_disorder', 'medication']
+    binary_test_dct = {}
+
+    if exam_type == 'neuro':
+        exam_name_lst = ('MSRARSP', 'MSLARSP', 'MSRLRSP', 'MSLLRSP', 'COFNRRSP',
+            'COFNLRSP', 'COHSRRSP', 'COHSLRSP', 'SENRARSP', 'SENLARSP',
+            'SENRLRSP', 'SENLLRSP', 'RFLRARSP', 'RFLLARSP', 'RFLRLRSP',
+            'RFLLLRSP', 'PLRRRSP', 'PLRLRSP')
+        fname = 'General_Neurological_Exam'
+    elif exam_type == 'pd_features':
+        exam_name_lst = ('DXTREMOR', 'DXRIGID', 'DXBRADY', 'DXPOSINS')
+        fname = 'PD_Features'
+    elif exam_type == 'rem_disorder':
+        exam_name_lst = ('DRMVIVID', 'DRMAGRAC', 'DRMNOCTB', 'SLPLMBMV',
+            'SLPINJUR', 'DRMVERBL', 'DRMFIGHT', 'DRMUMV', 'DRMOBJFL',
+            'MVAWAKEN', 'DRMREMEM', 'SLPDSTRB', 'STROKE', 'HETRA', 'PARKISM',
+            'RLS', 'NARCLPSY', 'DEPRS', 'EPILEPSY', 'BRNINFM')
+        fname = 'REM_Sleep_Disorder_Questionnaire'
+    elif exam_type == 'medication':
+        exam_name_lst = ['ONLDOPA', 'ONDOPAG']
+        fname = 'Use_of_PD_Medication'
+
+    f = open('%s/%s.csv' % (data_folder, fname), 'r')
     it = reader(f)
     # Process the header line.
     header = it.next()
@@ -402,17 +455,19 @@ def read_neuro_exam():
     exam_idx_lst = [header.index(exam) for exam in exam_name_lst]
     for line in it:
         patno, event_id = line[patno_idx], line[event_idx]
-        # Again, a duplicate entry.
-        if patno not in updrs_dct or event_id != 'BL' or patno == '54186':
+        if patno not in updrs_dct or event_id != 'BL':
             continue
-        neuro_exam_dct[patno] = []
+
+        # Again, a duplicate entry.
+        assert patno not in binary_test_dct or patno == '54186'
+        binary_test_dct[patno] = []
         # Get abnormal values ('1') for each test.
         exam_val_lst = [line[exam_idx] for exam_idx in exam_idx_lst]
         for exam_name_idx, exam_val in enumerate(exam_val_lst):
             if exam_val == '1':
-                neuro_exam_dct[patno] += [(exam_name_lst[exam_name_idx], 1)]
+                binary_test_dct[patno] += [(exam_name_lst[exam_name_idx], 1)]
     f.close()
-    return neuro_exam_dct
+    return binary_test_dct
 
 def read_hvlt():
     '''
@@ -448,6 +503,68 @@ def read_hvlt():
 
     return hvlt_dct
 
+def read_demographics():
+    demographics_dct = {}
+
+    gender_dct = {'0':'Female of child bearing potential',
+        '1':'Female of non-child bearing potential', '2':'Male'}
+    race_lst = ('HISPLAT', 'RAINDALS', 'RAASIAN', 'RABLACK', 'RAHAWOPI',
+        'RAWHITE')
+    f = open('%s/Screening___Demographics.csv' % data_folder, 'r')
+    it = reader(f)
+    # Process the header line.
+    header = it.next()
+    race_idx_lst = [header.index(race) for race in race_lst]
+    patno_idx, gender_idx = header.index('PATNO'), header.index('GENDER')
+    for line in it:
+        patno, gender = line[patno_idx], line[gender_idx]
+        if patno not in updrs_dct:
+            continue
+        gender = gender_dct[gender]
+        # Update the patient.
+        if patno in demographics_dct:
+            continue
+        # Initialize patient with gender.
+        demographics_dct[patno] = [(gender, 1)]
+        # Add race information.
+        race_val_lst = [line[race_idx] for race_idx in race_idx_lst]
+        for race_idx, race_val in enumerate(race_val_lst):
+            if race_val == '1':
+                demographics_dct[patno] += [(race_lst[race_idx], 1)]
+    f.close()
+    return demographics_dct
+
+def read_pd_surgery():
+    pd_surgery_dct = {}
+
+    feat_name_lst = ('PATNO', 'EVENT_ID', 'PDSURG', 'PDSURGTP', 'PDSLGPI',
+        'PDSLSTN')
+    pdsurg_type_dct = {'1':'DBS (Deep Brain Stimulation)',
+        '2':'Levodopa intestinal gel infusion'}
+    f = open('%s/Surgery_for_Parkinson_Disease.csv' % data_folder, 'r')
+    it = reader(f)
+    # Process the header line.
+    header = it.next()
+    feat_idx_lst = [header.index(feat) for feat in feat_name_lst]
+    for line in it:
+        patno, event_id, pdsurg, pdsurgtp, pdslgpi, pdslstn = (line[feat_idx]
+            for feat_idx in feat_idx_lst)
+        if patno not in updrs_dct or event_id != 'BL' or pdsurg != '1':
+            continue
+        # Skip surgery of type "other".
+        if pdsurgtp == '3':
+            continue
+        assert patno not in pd_surgery_dct
+
+        pd_surgery_dct[patno] = [(pdsurg_type_dct[pdsurgtp], 1)]
+        if pdslgpi == '1':
+            pd_surgery_dct[patno] += [('PDSLGPI', 1)]
+        if pdslstn == '1':
+            pd_surgery_dct[patno] += [('PDSLSTN', 1)]
+    f.close()
+
+    return pd_surgery_dct
+
 def main():
     # Sum up the scores to compute a label for each patient.
     read_updrs_file('MDS_UPDRS_Part_I')
@@ -460,9 +577,11 @@ def main():
     # adverse_event_dct = read_adverse_events()
 
     # Don't use this as features in ProSNet network.
-    line_orientation_dct = read_line_orientation()
+    # line_orientation_dct = read_line_orientation()
+    line_orientation_dct = read_test_score('benton')
 
-    biospecimen_dct = read_biospecimen_analysis()
+    biospecimen_dct = read_test_analysis('biospecimen')
+    concom_medication_dct = read_test_analysis('concom_medications')
     # TODO: No hematology, because no baseline visits in these tests.
     # hematology_dct = read_test_analysis('hematology')
 
@@ -475,7 +594,7 @@ def main():
     # medication_dct = read_test_analysis('medication')
 
     # cognitive_assessment_dct = read_cognitive_assessments()
-    # medical_condition_dct = read_medical_conditions()
+    medical_condition_dct = read_medical_conditions()
 
     # Don't use this as features in ProSNet network.
     epworth_dct = read_epworth_scale()
@@ -486,7 +605,27 @@ def main():
 
     # rbd_dct = read_rbd()
 
-    neuro_exam_dct = read_neuro_exam()
+    neuro_exam_dct = read_binary_tests('neuro')
+
+    # Don't use this as features in ProSNet network.
+    lns_dct = read_test_score('lns')
+    # Don't use this as features in ProSNet network.
+    schwab_dct = read_test_score('schwab')
+    # Don't use this as features in ProSNet network.
+    moca_dct = read_test_score('montreal')
+    # Don't use this as features in ProSNet network.
+    semantic_dct = read_test_score('semantic')
+    # Don't use this as features in ProSNet network.
+    symbol_dct = read_test_score('symbol')
+
+    pd_feat_dct = read_binary_tests('pd_features')
+    rem_disorder_dct = read_binary_tests('rem_disorder')
+
+    demographics_dct = read_demographics()
+
+    pd_surgery_dct = read_pd_surgery()
+
+    pd_medication_dct = read_binary_tests('medication')
 
     print 'Running tests...'
     # Test the UPDRS dictionary.
@@ -506,6 +645,11 @@ def main():
     assert ('Abeta 42', 310.8) in biospecimen_dct['3003']
     assert ('CSF Alpha-synuclein', 1520.36) in biospecimen_dct['3018']
     assert ('CSF Alpha-synuclein', 1036.57) in biospecimen_dct['4077']
+
+    # Test concomitant medications dictionary.
+    assert '"ESTROGEN GEL"' not in concom_medication_dct['50157']
+    assert ('ACYCLOVIR', 400) in concom_medication_dct['51551']
+    assert ('ABILIFY', 5) in concom_medication_dct['52373']
 
     # # Test hematology dictionary.
     # assert hematology_dct['3252']['Calcium (EDTA)'] == [2.57, 2.42, 2.45, 2.42,
@@ -530,14 +674,10 @@ def main():
     assert cognitive_categorization_dct['40755'] == [('COGDECLN', 1), (
         'FNCDTCOG', 1), ('COGSTATE', 2)]
 
-    # # Test concomitant medications dictionary.
-    # assert '"ESTROGEN GEL"' not in medication_dct['50157']
-    # assert medication_dct['51551']['ACYCLOVIR'] == [500, 400]
-    # assert medication_dct['52373']['ABILIFY'] == [2, 5]
-
     # # Test medical conditions dictionary.
-    # assert medical_condition_dct['3001']['Urinary incontinence'] == [1]
-    # assert medical_condition_dct['3008']['Drug hypersensitivity'] == [1]
+    assert ('Urinary incontinence', 1) in medical_condition_dct['3001']
+    assert ('Drug hypersensitivity', 1) in medical_condition_dct['3008']
+    assert ('Postmenopause', 1) in medical_condition_dct['3453']
 
     # Test the Epworth sleepiness scale dictionary.
     assert ('ESS1', 2) in epworth_dct['3000']
@@ -564,6 +704,58 @@ def main():
     assert ('DVT_TOTAL_RECALL', 37) in hvlt_dct['3502']
     assert ('DVT_RETENTION', 55) in hvlt_dct['3010']
     assert ('DVT_DELAYED_RECALL', 32) in hvlt_dct['56680']
+
+    # Test the letter-number sequencing dictionary.
+    assert lns_dct['3400'] == [('DVS_LNS', 9)]
+    assert lns_dct['40594'] == [('DVS_LNS', 5)]
+    assert lns_dct['55124'] == [('DVS_LNS', 14)]
+
+    # Test the Schwab-England dictionary.
+    assert schwab_dct['40612'] == [('MSEADLG', 70)]
+    assert schwab_dct['51918'] == [('MSEADLG', 100)]
+    assert schwab_dct['41395'] == [('MSEADLG', 20)]
+
+    # Test the Montreal cognitive assessment dictionary.
+    assert moca_dct['40612'] == [('MCATOT', 15)]
+    assert moca_dct['51918'] == [('MCATOT', 24)]
+    assert moca_dct['41395'] == [('MCATOT', 12)]
+
+    # Test the PD feature dictionary.
+    assert pd_feat_dct['40551'] == [('DXTREMOR', 1), ('DXBRADY', 1)]
+    assert pd_feat_dct['40938'] == [('DXTREMOR', 1), ('DXRIGID', 1), ('DXBRADY',
+        1), ('DXPOSINS', 1)]
+    assert pd_feat_dct['40753'] == [('DXRIGID', 1), ('DXBRADY', 1)]
+
+    # Test the REM disorder dictionary.
+    assert ('DRMVIVID', 1) in rem_disorder_dct['3401']
+    assert ('DRMFIGHT', 1) in rem_disorder_dct['3400']
+    assert ('HETRA', 1) in rem_disorder_dct['3451']
+    assert ('SLPLMBMV', 1) in rem_disorder_dct['54186']
+
+    # Test the demographics dictionary.
+    assert demographics_dct['3400'] == [('Female of child bearing potential',
+        1), ('RAWHITE', 1)]
+
+    # Test semantic fluency dictionary.
+    assert semantic_dct['3411'] == [('DVS_SFTANIM', 19)]
+    assert semantic_dct['3501'] == [('DVS_SFTANIM', 7)]
+    assert semantic_dct['41985'] == [('DVS_SFTANIM', 8)]
+
+    # Test PD surgery dictionary.
+    assert '3410' not in pd_surgery_dct
+    assert '50418' not in pd_surgery_dct
+    assert pd_surgery_dct['52599'] == [('DBS (Deep Brain Stimulation)',
+        1), ('PDSLSTN', 1)]
+
+    # Test the symbol digit modalities dictionary.
+    assert symbol_dct['3403'] == [('DVSD_SDM', -1)]
+    assert symbol_dct['50621'] == [('DVSD_SDM', 1.25)]
+    assert symbol_dct['42164'] == [('DVSD_SDM', -0.167)]
+
+    # Test the PD medication dictionary.
+    assert pd_medication_dct['40595'] == [('ONLDOPA', 1)]
+    assert pd_medication_dct['41400'] == [('ONLDOPA', 1), ('ONDOPAG', 1)]
+    assert pd_medication_dct['41288'] == [('ONDOPAG', 1)]
 
     print 'Finished tests!'
 
