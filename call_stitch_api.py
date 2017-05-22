@@ -1,6 +1,8 @@
 ### Author: Edward Huang
 
 from csv import reader
+import json
+import os
 import urllib
 
 # This file writes the file of WHO medicine names to upload to the STITCH 
@@ -18,9 +20,6 @@ def read_medication_file():
         drug_id = line[23]
         if drug_id == '':
             continue
-        # Replace spaces in the drug ID with '%20'.
-        # drug_id = drug_id.split()
-        # drug_id = '%0D'.join(drug_id)
         # Add drug to the set.
         drug_set.add(drug_id)
     f.close()
@@ -38,7 +37,7 @@ def call_stitch_api_identifiers(i, drug_list):
 
     f = urllib.urlopen(api_link)
     myfile = f.read()
-    out = open('./data/stitch_api_request_%d.txt' % i, 'w')
+    out = open('%s/stitch_api_request_%d.txt' % (results_folder, i), 'w')
     out.write(myfile)
     out.close()
 
@@ -48,7 +47,7 @@ def map_who_to_stitch(who_to_stitch_dct, drug_list, i):
     corresponding STITCH identifiers.
     '''
     annotation_lst = []
-    f = open('./data/stitch_api_request_%d.txt' % i, 'r')
+    f = open('%s/stitch_api_request_%d.txt' % (results_folder, i), 'r')
     f.readline() # Skip the header line.
     for line in f:
         if 'small molecule' not in line:
@@ -75,7 +74,7 @@ def call_stitch_api_interactions(stitch_id_lst, i):
     api_link += '&species=9606&required_score=900&limit=100'
 
     f = urllib.urlopen(api_link)
-    out = open('./data/stitch_api_interactions_%d.txt' % i, 'w')
+    out = open('%s/stitch_api_interactions_%d.txt' % (results_folder, i), 'w')
     for line in f:
         line = line.strip().split('\t')
         node_a, node_b = line[2], line[3]
@@ -87,10 +86,16 @@ def call_stitch_api_interactions(stitch_id_lst, i):
     out.close()
 
 def main():
+    # Generate directory.
+    global results_folder
+    results_folder = './data/api_calls'
+    if not os.path.exists(results_folder):
+        os.makedirs(results_folder)
+
     drug_list = read_medication_file()
     # write_stitch_upload_file(drug_set)
 
-    who_to_stitch_dct = {}    
+    who_to_stitch_dct = {}
     # Process the drug list, 100 elements at a time.
     block_size = 10
     for i, sub_drug_lst in enumerate(zip(*[iter(drug_list)]*block_size)):
@@ -100,6 +105,8 @@ def main():
         annotation_lst = map_who_to_stitch(who_to_stitch_dct, sub_drug_lst, i)
         assert len(annotation_lst) <= block_size
         call_stitch_api_interactions(annotation_lst, i)
+    with open('./data/who_to_stitch_dct.json', 'w') as fp:
+        json.dump(who_to_stitch_dct, fp)
 
 if __name__ == '__main__':
     main()

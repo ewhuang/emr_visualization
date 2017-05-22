@@ -7,7 +7,6 @@ from csv import reader
 data_folder = './data/parkinsons_loni'
 updrs_dct = {} # Dictionary mapping patients to the summed UPDRS scores.
 
-# TODO.
 def read_updrs_file(fname):
     '''
     Reads the scores for all attributes in the MDS-UPDRS file.
@@ -68,37 +67,6 @@ def read_code_file():
     assert code_dct['FBIMAG']['FBATVS']['U04'] == 'Unexpected 4'
     assert code_dct['ind_upsit']['SCENT_37_CORRECT']['0'] == 'Incorrect'
     return code_dct
-
-# def read_adverse_events():
-#     '''
-#     Returns a dictionary mapping patient IDs to their adverse events.
-#     '''
-#     adverse_event_dct = {}
-#     f = open('%s/Adverse_Event_Log.csv' % data_folder, 'r')
-#     for i, line in enumerate(reader(f)):
-#         # Process header line.
-#         if i == 0:
-#             patno_idx = line.index('PATNO')
-#             term_idx = line.index('AETERM')
-#             severity_idx = line.index('AESEVER')
-#             related_idx = line.index('AERELAT')
-#             continue
-#         isRelated = line[related_idx]
-#         # TODO: Skip adverse events that are unrelated to the study.
-#         if isRelated not in ['4', '5']:
-#             continue
-#         patno = line[patno_idx]
-#         term = line[term_idx]
-#         severity = float(line[severity_idx])
-#         # Create nested list mapping adverse events to their severities.
-#         if patno not in adverse_event_dct:
-#             adverse_event_dct[patno] = {}
-#         # Create list of the adverse event's severities.
-#         if term not in adverse_event_dct[patno]:
-#             adverse_event_dct[patno][term] = []
-#         adverse_event_dct[patno][term] += [severity]
-#     f.close()
-#     return adverse_event_dct
 
 def read_test_score(test_type):
     '''
@@ -590,9 +558,6 @@ def main():
 
     cognitive_categorization_dct = read_cognitive_categorizations()
 
-    # TODO: no medication, because no baseline visits.
-    # medication_dct = read_test_analysis('medication')
-
     # cognitive_assessment_dct = read_cognitive_assessments()
     medical_condition_dct = read_medical_conditions()
 
@@ -658,10 +623,12 @@ def main():
     # assert hematology_dct['10874']['Total Protein'] == [63, 73, 67]
 
     # Test the clinical diagnosis and managemenet dictionary.
-    assert clinical_diag_dct['3465'] == [('DCRTREM', 1), ('DCRIGID', 1), ('DCBRADY', 1), ('Idiopathic PD', 1)]
+    assert clinical_diag_dct['3465'] == [('DCRTREM', 1), ('DCRIGID', 1
+        ), ('DCBRADY', 1), ('Idiopathic PD', 1)]
     assert '3082' not in clinical_diag_dct
     assert '3326' not in clinical_diag_dct
-    assert clinical_diag_dct['3836'] == [('DCRTREM', 1), ('DCRIGID', 1), ('DCBRADY', 1), ('Idiopathic PD', 1)]
+    assert clinical_diag_dct['3836'] == [('DCRTREM', 1), ('DCRIGID', 1
+        ), ('DCBRADY', 1), ('Idiopathic PD', 1)]
 
     # # Test cognitive assessments dictionary.
     # assert '3154' not in cognitive_assessment_dct
