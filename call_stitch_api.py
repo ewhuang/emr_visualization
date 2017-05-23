@@ -75,14 +75,16 @@ def call_stitch_api_interactions(stitch_id_lst, i):
 
     f = urllib.urlopen(api_link)
     out = open('%s/stitch_api_interactions_%d.txt' % (results_folder, i), 'w')
-    for line in f:
-        line = line.strip().split('\t')
-        node_a, node_b = line[2], line[3]
-        # Skip an interaction if neither node is in the query list.
-        # We will fetch chemical-chemical interactions later.
-        if node_a not in stitch_id_lst and node_b not in stitch_id_lst:
-            continue
-        out.write('%s\t%s\n' % (node_a, node_b))
+    # This if case is in situations in which there were no successful mappings.
+    if stitch_id_lst != []:
+        for line in f:
+            line = line.strip().split('\t')
+            node_a, node_b = line[2], line[3]
+            # Skip an interaction if neither node is in the query list.
+            # We will fetch chemical-chemical interactions later.
+            if node_a not in stitch_id_lst and node_b not in stitch_id_lst:
+                continue
+            out.write('%s\t%s\n' % (node_a, node_b))
     out.close()
 
 def main():

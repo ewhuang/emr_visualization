@@ -1,6 +1,7 @@
 ### Author: Edward Huang
 
 from csv import reader
+import json
 
 ### This script calls on LONI USC Parkinson's disease data.
 
@@ -131,8 +132,11 @@ def read_test_analysis(test_type):
             'UNITS')
         fname = 'Biospecimen_Analysis_Results'
     elif test_type == 'concom_medications':
-        feat_name_lst = ('PATNO', 'EVENT_ID', 'CMTRT', 'CMDOSE', 'CMDOSU')
+        feat_name_lst = ('PATNO', 'EVENT_ID', 'WHODRUG', 'CMDOSE', 'CMDOSU')
         fname = 'Concomitant_Medications'
+        # Load the dictionary mapping WHO terms to STITCH identifiers.
+        with open('./data/who_to_stitch_dct.json', 'r') as fp:
+            who_to_stitch_dct = json.load(fp)
     # Make sure that the units are consistent across all tests.
     test_unit_dct = {}
     f = open('%s/%s.csv' % (data_folder, fname), 'r')
@@ -143,6 +147,10 @@ def read_test_analysis(test_type):
     for line in it:
         patno, event_id, test_name, test_value, units = (line[feat_idx] for
             feat_idx in feat_idx_lst)
+        if test_type == 'concom_medications':
+            if test_name not in who_to_stitch_dct:
+                continue
+            test_name = who_to_stitch_dct[test_name]
         # Skip patients without UPDRS scores.
         if patno not in updrs_dct:
             continue
@@ -533,6 +541,23 @@ def read_pd_surgery():
 
     return pd_surgery_dct
 
+def read_mutation_file():
+    '''
+    Reads the PPMI mutation file, and records the genes with mutations for each
+    patient. No header line.
+    '''
+    mutation_dct = {}
+    f = open('./data/PPMI_mutation.txt', 'r')
+    for line in f:
+        patno, mutated_gene, att_1, att_2 = line.strip().split('\t')
+        # Add the mutation tag line to the gene.
+        mutated_gene += '_MUT'
+        if patno not in mutation_dct:
+            mutation_dct[patno] = set([])
+        mutation_dct[patno].add((mutated_gene, 1))
+    f.close()
+    return mutation_dct
+
 def main():
     # Sum up the scores to compute a label for each patient.
     read_updrs_file('MDS_UPDRS_Part_I')
@@ -591,6 +616,8 @@ def main():
     pd_surgery_dct = read_pd_surgery()
 
     pd_medication_dct = read_binary_tests('medication')
+    
+    mutation_dct = read_mutation_file()
 
     print 'Running tests...'
     # Test the UPDRS dictionary.
@@ -612,9 +639,9 @@ def main():
     assert ('CSF Alpha-synuclein', 1036.57) in biospecimen_dct['4077']
 
     # Test concomitant medications dictionary.
-    assert '"ESTROGEN GEL"' not in concom_medication_dct['50157']
-    assert ('ACYCLOVIR', 400) in concom_medication_dct['51551']
-    assert ('ABILIFY', 5) in concom_medication_dct['52373']
+    assert 'estrogen' not in concom_medication_dct['50157']
+    assert ('acyclovir', 400) in concom_medication_dct['51551']
+    assert ('aripiprazole', 5) in concom_medication_dct['52373']
 
     # # Test hematology dictionary.
     # assert hematology_dct['3252']['Calcium (EDTA)'] == [2.57, 2.42, 2.45, 2.42,
@@ -723,6 +750,12 @@ def main():
     assert pd_medication_dct['40595'] == [('ONLDOPA', 1)]
     assert pd_medication_dct['41400'] == [('ONLDOPA', 1), ('ONDOPAG', 1)]
     assert pd_medication_dct['41288'] == [('ONDOPAG', 1)]
+
+    # Test the PPMI mutation dictionary.
+    assert ('ATP13A2_MUT', 1) in mutation_dct['3210']
+    assert ('SYT11_MUT', 1) in mutation_dct['3210']
+    assert ('RAB29_MUT', 1) in mutation_dct['3800']
+    assert ('MAPT_MUT', 1) in mutation_dct['3004']
 
     print 'Finished tests!'
 

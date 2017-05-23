@@ -24,3 +24,15 @@ python process_loni_parkinsons.py
     ```bash
     python call_stitch_api.py
     ```
+
+2.  Download PPI network from HumanNet.
+
+
+## Running ProSNet.
+
+1.  Under ./prosnet/model/main.cpp, line 108, must change 'x' to the number of
+    unique edge types. Cannot handle more than 26 edge types.
+
+    ```bash
+    python run_prosnet.py
+    ```
