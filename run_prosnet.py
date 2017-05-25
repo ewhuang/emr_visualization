@@ -1,7 +1,7 @@
 ### Author: Edward Huang
 
 import os
-import process_loni_parkinsons
+from process_loni_parkinsons import *
 import string
 import subprocess
 import sys
@@ -26,7 +26,7 @@ def get_entrez_to_hgnc_dct():
         hgnc_id, entrez_id = line
         assert entrez_id not in entrez_to_hgnc_dct
         entrez_to_hgnc_dct[entrez_id] = hgnc_id
-    f.close()    
+    f.close()
     return entrez_to_hgnc_dct
 
 def get_ppi_edge_set():
@@ -51,29 +51,18 @@ def get_ppi_edge_set():
     f.close()
     return ppi_edge_set
 
-def get_protein_drug_edge_set():
+def get_stitch_edge_set(fname):
     '''
     Gets the drug-protein interactions obtained from the STITCH database.
     Return each tuple as (protein, drug).
     '''
-    protein_drug_edge_set = set([])
-    api_dir = './data/api_calls'
-    fname_lst = os.listdir(api_dir)
-    for fname in fname_lst:
-        if 'interactions' not in fname:
-            continue
-        f = open('%s/%s' % (api_dir, fname), 'r')
-        for line in f:
-            node_a, node_b = line.strip().split('\t')
-            if node_a.isupper():
-                assert node_b.islower()
-                protein_drug_edge_set.add((node_a, node_b))
-            else:
-                assert node_b.isupper()
-                protein_drug_edge_set.add((node_b, node_a))
-        f.close()
-        break
-    return protein_drug_edge_set
+    edge_set = set([])
+    f = open('./data/api_calls/%s.txt' % fname, 'r')
+    for line in f:
+        node, drug = line.strip().split('\t')
+        edge_set.add((node, drug))
+    f.close()
+    return edge_set
 
 def write_files(node_out, edge_out, edge_set, node_type_a, node_type_b):
     '''
@@ -101,16 +90,32 @@ def write_files(node_out, edge_out, edge_set, node_type_a, node_type_b):
                 node_out.write('%s\t%s\n' % (node, node_type_tup[i]))
             # Write out the edge.
             edge_out.write('%s\t' % node)
-        # Edge weights are all = 1. Map the edge type to a letter. TODO.
+        # Edge weights are all = 1. Map the edge type to a letter.
         edge_label = string.ascii_lowercase[num_edge_types]
         # edge_label = num_edge_types + 1
         edge_out.write('1\t%s\n' % edge_label)
     num_edge_types += 1
 
+def get_coocc_edge_set(patient_dct_a, patient_dct_b):
+    '''
+    Get the symptom-herb relations from the co-occurrence counts of the patient
+    records.
+    '''
+    coocc_edge_set = set([])
+    # Get the intersecting set of patients in both dictionaries.
+    patient_set = set(patient_dct_a.keys()).intersection(patient_dct_b.keys())
+    for inhospital_id in patient_set:
+        # for (node_a, node_a_freq) in patient_dct_a[inhospital_id]:
+        for node_a in patient_dct_a[inhospital_id]:
+            # for (node_b, node_b_freq) in patient_dct_b[inhospital_id]:
+            for node_b in patient_dct_b[inhospital_id]:
+                # We skip self edges, but keep other same-type edges. TODO.
+                if node_a != node_b:
+                    coocc_edge_set.add((node_a, node_b))
+    return coocc_edge_set
+
 def run_prosnet():
-    # os.chdir('../simons_mouse/Sheng/prosnet/model')
     os.chdir('./prosnet/model')
-    # network_folder = '../../../../cancer_survival_tcm/data/prosnet_data'
     network_folder = '../../data/prosnet_data'
     command = ('./embed -node "%s/prosnet_node_list.txt" -link "%s/prosnet_'
         'edge_list.txt" -binary 0 -size %s -negative 5 -samples 1 '
@@ -120,12 +125,57 @@ def run_prosnet():
     print command
     subprocess.call(command, shell=True)
 
+def get_attributes(patient_dct_lst):
+    '''
+    Given a patient dictionary mapping patients to (feature, feature_freq)
+    tuples, instead return a dictionary mapping patients to lists of the
+    features.
+    '''
+    new_dct = {}
+    for patient_dct in patient_dct_lst:
+        # Go through each patient dictionary.
+        for patno in patient_dct:
+            tuple_lst = patient_dct[patno]
+            if patno not in new_dct:
+                new_dct[patno] = []
+            new_dct[patno] += [pair[0] for pair in tuple_lst]
+    return new_dct
+
 def get_spreadsheet_results():
     '''
     Returns a dictionary mapping some key, denoting the spreadsheet, to the 
     dictionary of that spreadsheet's results. Dictionary of dictionaries.
     '''
-    line_orientation_dct = process_loni_parkinsons.read_test_score('benton')
+    updrs_dct = get_updrs_dct()
+    f_tuples = []
+    # Medical tests.
+    test_dct = get_attributes([read_test_analysis('biospecimen', updrs_dct),
+        read_binary_tests('neuro', updrs_dct), read_binary_tests('pd_features',
+            updrs_dct), read_cognitive_categorizations(updrs_dct),
+            read_pd_surgery(updrs_dct)])
+    f_tuples += [('t', test_dct)]
+
+    # Symptoms.
+    code_dct = read_code_file()
+    symp_dct = get_attributes([read_clinical_diagnosis(code_dct, updrs_dct),
+        read_medical_conditions(updrs_dct), read_binary_tests('rem_disorder',
+            updrs_dct)])
+    f_tuples += [('s', symp_dct)]
+
+    # Demographics.
+    demo_dct = get_attributes([read_demographics(updrs_dct)])
+    f_tuples += [('m', demo_dct)]
+
+    # Drugs.
+    drug_dct = get_attributes([read_test_analysis('concom_medications',
+        updrs_dct), read_binary_tests('medication', updrs_dct)])
+    f_tuples += [('d', drug_dct)]
+
+    # Gene mutations.
+    mutation_dct = get_attributes([read_mutation_file(updrs_dct)])
+    f_tuples += [('g', mutation_dct)]
+
+    return f_tuples
 
 def main():
     if len(sys.argv) != 2:
@@ -143,14 +193,29 @@ def main():
 
     ppi_edge_set = get_ppi_edge_set()
     write_files(node_out, edge_out, ppi_edge_set, 'p', 'p')
-    protein_drug_edge_set = get_protein_drug_edge_set()
+
+    protein_drug_edge_set = get_stitch_edge_set('stitch_protein_drug')
     write_files(node_out, edge_out, protein_drug_edge_set, 'p', 'd')
+    drug_drug_edge_set = get_stitch_edge_set('stitch_drug_drug')
+
+    f_tuples = get_spreadsheet_results()
+    # Loop through every pair of node types.
+    for i in range(len(f_tuples)):
+        node_type_a, patient_dct_a = f_tuples[i]
+        for j in range(i, len(f_tuples)):
+            node_type_b, patient_dct_b = f_tuples[j]
+            # Get the co-occurrence edge set.
+            edge_set = get_coocc_edge_set(patient_dct_a, patient_dct_b)
+
+            if node_type_a == 'd' and node_type_b == 'd':
+                # Add in the drug-drug edges from STITCH.
+                edge_set = edge_set.union(drug_drug_edge_set)
+
+            # Write the edges out to file.
+            write_files(node_out, edge_out, edge_set, node_type_a, node_type_b)
 
     edge_out.close()
     node_out.close()
-
-    get_spreadsheet_results()
-    exit()
 
     # Run prosnet. Outputs the low-dimensional vectors into files.
     run_prosnet()

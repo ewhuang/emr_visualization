@@ -64,7 +64,8 @@ def map_who_to_stitch(who_to_stitch_dct, drug_list, i):
     f.close()
     return annotation_lst
 
-def call_stitch_api_interactions(stitch_id_lst, i):
+def call_stitch_api_interactions(stitch_id_lst, i, protein_drug_set,
+    drug_drug_set):
     '''
     Given a list of STITCH identifiers, get the interaction partners of the
     query items.
@@ -74,17 +75,35 @@ def call_stitch_api_interactions(stitch_id_lst, i):
     api_link += '&species=9606&required_score=900&limit=100'
 
     f = urllib.urlopen(api_link)
-    out = open('%s/stitch_api_interactions_%d.txt' % (results_folder, i), 'w')
+    # out = open('%s/stitch_api_interactions_%d.txt' % (results_folder, i), 'w')
     # This if case is in situations in which there were no successful mappings.
     if stitch_id_lst != []:
         for line in f:
             line = line.strip().split('\t')
-            node_a, node_b = line[2], line[3]
+            # TODO: Find a way to determine what type each node is (protein, drug)?
+            node_a_type, node_b_type, node_a, node_b = line[:4]
             # Skip an interaction if neither node is in the query list.
             # We will fetch chemical-chemical interactions later.
             if node_a not in stitch_id_lst and node_b not in stitch_id_lst:
                 continue
-            out.write('%s\t%s\n' % (node_a, node_b))
+            # Drug-drug, protein-protein, or drug-protein.
+            if 'ENSP' in node_a_type and 'ENSP' in node_b_type:
+                # Skip protein-protein edges.
+                continue
+            elif 'ENSP' in node_a_type and 'CID' in node_b_type:
+                protein_drug_set.add((node_a, node_b))
+            elif 'CID' in node_a_type and 'ENSP' in node_b_type:
+                protein_drug_set.add((node_b, node_a))
+            else:
+                assert 'CID' in node_a_type and 'CID' in node_b_type
+                drug_drug_set.add((node_a, node_b))
+    #         out.write('%s\t%s\n' % (node_a, node_b))
+    # out.close()
+
+def write_edges(fname, edge_set):
+    out = open('%s/%s.txt' % (results_folder, fname), 'w')
+    for node_a, node_b in edge_set:
+        out.write('%s\t%s\n' % (node_a, node_b))
     out.close()
 
 def main():
@@ -98,6 +117,7 @@ def main():
     # write_stitch_upload_file(drug_set)
 
     who_to_stitch_dct = {}
+    protein_drug_set, drug_drug_set = set([]), set([])
     # Process the drug list, 100 elements at a time.
     block_size = 10
     for i, sub_drug_lst in enumerate(zip(*[iter(drug_list)]*block_size)):
@@ -106,9 +126,13 @@ def main():
         # Map the WHO drug IDs to their corresponding STITCH names.
         annotation_lst = map_who_to_stitch(who_to_stitch_dct, sub_drug_lst, i)
         assert len(annotation_lst) <= block_size
-        call_stitch_api_interactions(annotation_lst, i)
+        call_stitch_api_interactions(annotation_lst, i, protein_drug_set,
+            drug_drug_set)
     with open('./data/who_to_stitch_dct.json', 'w') as fp:
         json.dump(who_to_stitch_dct, fp)
+    # Write out interactions to file.
+    write_edges('stitch_protein_drug', protein_drug_set)
+    write_edges('stitch_drug_drug', drug_drug_set)
 
 if __name__ == '__main__':
     main()

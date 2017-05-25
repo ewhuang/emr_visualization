@@ -6,13 +6,11 @@ import json
 ### This script calls on LONI USC Parkinson's disease data.
 
 data_folder = './data/parkinsons_loni'
-updrs_dct = {} # Dictionary mapping patients to the summed UPDRS scores.
 
-def read_updrs_file(fname):
+def read_updrs_file(fname, updrs_dct):
     '''
     Reads the scores for all attributes in the MDS-UPDRS file.
     '''
-    global updrs_dct
     current_patient_set = set([])
     f = open('%s/%s.csv' % (data_folder, fname), 'r')
     for i, line in enumerate(reader(f)):
@@ -43,6 +41,18 @@ def read_updrs_file(fname):
         current_patient_set.add(patno)
     f.close()
 
+def get_updrs_dct():
+    '''
+    Returns a dictionary mapping patients to the summed UPDRS scores.
+    '''
+    updrs_dct = {}
+    # Sum up the scores to compute a label for each patient.
+    for fname in ('MDS_UPDRS_Part_I', 'MDS_UPDRS_Part_I__Patient_Questionnaire',
+        'MDS_UPDRS_Part_II__Patient_Questionnaire',
+        'MDS_UPDRS_Part_III__Post_Dose_', 'MDS_UPDRS_Part_IV'):
+        read_updrs_file(fname, updrs_dct)
+    return updrs_dct
+
 def read_code_file():
     '''
     Maps the code of each file to the decoded name.
@@ -69,7 +79,7 @@ def read_code_file():
     assert code_dct['ind_upsit']['SCENT_37_CORRECT']['0'] == 'Incorrect'
     return code_dct
 
-def read_test_score(test_type):
+def read_test_score(test_type, updrs_dct):
     '''
     Returns a dictionary mapping PATNOs to a variety of test results.
     Includes Benton, letter-number sequencing, modified Schwab-England, and
@@ -118,7 +128,7 @@ def read_test_score(test_type):
     f.close()
     return test_dct
 
-def read_test_analysis(test_type):
+def read_test_analysis(test_type, updrs_dct):
     '''
     Returns a dictionary mapping PATNOs to test results.
     Key: PATNO -> str
@@ -178,7 +188,7 @@ def read_test_analysis(test_type):
         test_dct[patno] = test_dct[patno].items()
     return test_dct
 
-def read_clinical_diagnosis(code_dct):
+def read_clinical_diagnosis(code_dct, updrs_dct):
     '''
     Returns the major clinical diagnosis and additional notes for each patient.
     '''
@@ -249,7 +259,7 @@ def read_clinical_diagnosis(code_dct):
 #     f.close()
 #     return cognitive_assessment_dct
 
-def read_cognitive_categorizations():
+def read_cognitive_categorizations(updrs_dct):
     '''
     Returns a dictionary mapping PATNOs to cognitive categorizations.
     '''
@@ -278,7 +288,7 @@ def read_cognitive_categorizations():
     f.close()
     return cognitive_categorization_dct
 
-def read_medical_conditions():
+def read_medical_conditions(updrs_dct):
     '''
     Maps PATNOs to current medical conditions.
     '''
@@ -300,7 +310,7 @@ def read_medical_conditions():
     f.close()
     return medical_condition_dct
 
-def read_epworth_scale():
+def read_epworth_scale(updrs_dct):
     '''
     Maps PATNOs to epworth sleepiness scales. These are not to be used as
     features in the ProSNet network.
@@ -332,7 +342,7 @@ def read_epworth_scale():
 
     return epworth_dct
 
-def read_family_history():
+def read_family_history(updrs_dct):
     '''
     Maps PATNOs to family history of PD. These are not to be used as features
     in the ProSNet network.
@@ -397,7 +407,7 @@ def read_family_history():
 #     f.close()
 #     return rbd_dct
 
-def read_binary_tests(exam_type):
+def read_binary_tests(exam_type, updrs_dct):
     '''
     Maps PATNOs to their exam results, whether there are any abnormalities.
     '''
@@ -445,7 +455,7 @@ def read_binary_tests(exam_type):
     f.close()
     return binary_test_dct
 
-def read_hvlt():
+def read_hvlt(updrs_dct):
     '''
     Maps PATNOs to Hopkins Test dictionary. Not to be used with ProSNet.
     '''
@@ -479,7 +489,7 @@ def read_hvlt():
 
     return hvlt_dct
 
-def read_demographics():
+def read_demographics(updrs_dct):
     demographics_dct = {}
 
     gender_dct = {'0':'Female of child bearing potential',
@@ -510,7 +520,7 @@ def read_demographics():
     f.close()
     return demographics_dct
 
-def read_pd_surgery():
+def read_pd_surgery(updrs_dct):
     pd_surgery_dct = {}
 
     feat_name_lst = ('PATNO', 'EVENT_ID', 'PDSURG', 'PDSURGTP', 'PDSLGPI',
@@ -541,7 +551,7 @@ def read_pd_surgery():
 
     return pd_surgery_dct
 
-def read_mutation_file():
+def read_mutation_file(updrs_dct):
     '''
     Reads the PPMI mutation file, and records the genes with mutations for each
     patient. No header line.
@@ -550,6 +560,8 @@ def read_mutation_file():
     f = open('./data/PPMI_mutation.txt', 'r')
     for line in f:
         patno, mutated_gene, att_1, att_2 = line.strip().split('\t')
+        if patno not in updrs_dct:
+            continue
         # Add the mutation tag line to the gene.
         mutated_gene += '_MUT'
         if patno not in mutation_dct:
@@ -559,68 +571,63 @@ def read_mutation_file():
     return mutation_dct
 
 def main():
-    # Sum up the scores to compute a label for each patient.
-    read_updrs_file('MDS_UPDRS_Part_I')
-    read_updrs_file('MDS_UPDRS_Part_I__Patient_Questionnaire')
-    read_updrs_file('MDS_UPDRS_Part_II__Patient_Questionnaire')
-    read_updrs_file('MDS_UPDRS_Part_III__Post_Dose_')
-    read_updrs_file('MDS_UPDRS_Part_IV')
-
+    updrs_dct = get_updrs_dct()
     # TODO: Currently not doing adverse events, since they don't specify BL.
     # adverse_event_dct = read_adverse_events()
 
     # Don't use this as features in ProSNet network.
-    # line_orientation_dct = read_line_orientation()
-    line_orientation_dct = read_test_score('benton')
+    line_orientation_dct = read_test_score('benton', updrs_dct)
 
-    biospecimen_dct = read_test_analysis('biospecimen')
-    concom_medication_dct = read_test_analysis('concom_medications')
+    biospecimen_dct = read_test_analysis('biospecimen', updrs_dct)
+    concom_medication_dct = read_test_analysis('concom_medications', updrs_dct)
     # TODO: No hematology, because no baseline visits in these tests.
     # hematology_dct = read_test_analysis('hematology')
 
     code_dct = read_code_file()
-    clinical_diag_dct = read_clinical_diagnosis(code_dct)
+    clinical_diag_dct = read_clinical_diagnosis(code_dct, updrs_dct)
 
-    cognitive_categorization_dct = read_cognitive_categorizations()
+    cognitive_categorization_dct = read_cognitive_categorizations(updrs_dct)
 
     # cognitive_assessment_dct = read_cognitive_assessments()
-    medical_condition_dct = read_medical_conditions()
+    medical_condition_dct = read_medical_conditions(updrs_dct)
 
     # Don't use this as features in ProSNet network.
-    epworth_dct = read_epworth_scale()
+    epworth_dct = read_epworth_scale(updrs_dct)
     # Don't use this as features in ProSNet network.
-    family_history_dct = read_family_history()
+    family_history_dct = read_family_history(updrs_dct)
     # Don't use this as features in ProSNet network.
-    hvlt_dct = read_hvlt()
+    hvlt_dct = read_hvlt(updrs_dct)
 
     # rbd_dct = read_rbd()
 
-    neuro_exam_dct = read_binary_tests('neuro')
+    neuro_exam_dct = read_binary_tests('neuro', updrs_dct)
 
     # Don't use this as features in ProSNet network.
-    lns_dct = read_test_score('lns')
+    lns_dct = read_test_score('lns', updrs_dct)
     # Don't use this as features in ProSNet network.
-    schwab_dct = read_test_score('schwab')
+    schwab_dct = read_test_score('schwab', updrs_dct)
     # Don't use this as features in ProSNet network.
-    moca_dct = read_test_score('montreal')
+    moca_dct = read_test_score('montreal', updrs_dct)
     # Don't use this as features in ProSNet network.
-    semantic_dct = read_test_score('semantic')
+    semantic_dct = read_test_score('semantic', updrs_dct)
     # Don't use this as features in ProSNet network.
-    symbol_dct = read_test_score('symbol')
+    symbol_dct = read_test_score('symbol', updrs_dct)
 
-    pd_feat_dct = read_binary_tests('pd_features')
-    rem_disorder_dct = read_binary_tests('rem_disorder')
+    pd_feat_dct = read_binary_tests('pd_features', updrs_dct)
+    rem_disorder_dct = read_binary_tests('rem_disorder', updrs_dct)
 
-    demographics_dct = read_demographics()
+    demographics_dct = read_demographics(updrs_dct)
 
-    pd_surgery_dct = read_pd_surgery()
+    pd_surgery_dct = read_pd_surgery(updrs_dct)
 
-    pd_medication_dct = read_binary_tests('medication')
+    pd_medication_dct = read_binary_tests('medication', updrs_dct)
     
-    mutation_dct = read_mutation_file()
+    mutation_dct = read_mutation_file(updrs_dct)
 
     print 'Running tests...'
     # Test the UPDRS dictionary.
+    assert updrs_dct['3400'] == 51
+    assert '3210' not in updrs_dct
 
     # # Test the adverse event dictionary.
     # assert adverse_event_dct['3226'] == {'BACK SORENESS':[1.0, 2.0]}
@@ -752,8 +759,7 @@ def main():
     assert pd_medication_dct['41288'] == [('ONDOPAG', 1)]
 
     # Test the PPMI mutation dictionary.
-    assert ('ATP13A2_MUT', 1) in mutation_dct['3210']
-    assert ('SYT11_MUT', 1) in mutation_dct['3210']
+    assert '3210' not in mutation_dct
     assert ('RAB29_MUT', 1) in mutation_dct['3800']
     assert ('MAPT_MUT', 1) in mutation_dct['3004']
 
