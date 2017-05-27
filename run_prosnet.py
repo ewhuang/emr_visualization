@@ -132,7 +132,7 @@ def get_attributes(patient_dct_lst):
     features.
     '''
     new_dct = {}
-    for patient_dct in patient_dct_lst:
+    for patient_dct, feature_set in patient_dct_lst:
         # Go through each patient dictionary.
         for patno in patient_dct:
             tuple_lst = patient_dct[patno]
@@ -154,14 +154,12 @@ def get_spreadsheet_results():
             updrs_dct), read_cognitive_categorizations(updrs_dct),
             read_pd_surgery(updrs_dct)])
     f_tuples += [('t', test_dct)]
-
     # Symptoms.
     code_dct = read_code_file()
     symp_dct = get_attributes([read_clinical_diagnosis(code_dct, updrs_dct),
         read_medical_conditions(updrs_dct), read_binary_tests('rem_disorder',
             updrs_dct)])
     f_tuples += [('s', symp_dct)]
-
     # Demographics.
     demo_dct = get_attributes([read_demographics(updrs_dct)])
     f_tuples += [('m', demo_dct)]
@@ -216,7 +214,7 @@ def main():
 
     edge_out.close()
     node_out.close()
-
+    
     # Run prosnet. Outputs the low-dimensional vectors into files.
     run_prosnet()
 

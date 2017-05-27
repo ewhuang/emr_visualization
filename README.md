@@ -30,9 +30,19 @@ python process_loni_parkinsons.py
 
 ## Running ProSNet.
 
-1.  Under ./prosnet/model/main.cpp, line 108, must change 'x' to the number of
-    unique edge types. Cannot handle more than 26 edge types.
+1.  Generate the low-dimensional vectors for each node in the network.
 
     ```bash
-    python run_prosnet.py
+    python run_prosnet.py num_dim
     ```
+
+2.  Build the patient feature matrices for baseline as well as normal run.
+
+    ```bash
+    python build_patient_feature_matrix.py normalization_method num_dim sim_thresh
+    ```
+    normalization_method in ['l1', 'l2', 'max']
+
+## Reducing dimensionality and visualizing the EMRs.
+
+1.  
