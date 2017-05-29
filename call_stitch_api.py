@@ -80,7 +80,6 @@ def call_stitch_api_interactions(stitch_id_lst, i, protein_drug_set,
     if stitch_id_lst != []:
         for line in f:
             line = line.strip().split('\t')
-            # TODO: Find a way to determine what type each node is (protein, drug)?
             node_a_type, node_b_type, node_a, node_b = line[:4]
             # Skip an interaction if neither node is in the query list.
             # We will fetch chemical-chemical interactions later.

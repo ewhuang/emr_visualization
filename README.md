@@ -46,3 +46,6 @@ python process_loni_parkinsons.py
 ## Reducing dimensionality and visualizing the EMRs.
 
 1.  
+    ```bash
+    python visualize_emrs.py normalization_method num_dim sim_thresh
+    ```

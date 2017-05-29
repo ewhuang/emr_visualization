@@ -68,9 +68,7 @@ def impute_missing_data(feature_matrix, master_feature_lst):
         return np.array(vector_matrix)
 
     vector_matrix = read_prosnet_output(master_feature_lst)
-    # TODO: absolute value.
     similarity_matrix = np.abs(cosine_similarity(vector_matrix))
-    # similarity_matrix = cosine_similarity(vector_matrix)
 
     similarity_matrix[similarity_matrix < sim_thresh] = 0
     np.fill_diagonal(similarity_matrix, 1)
@@ -80,8 +78,8 @@ def impute_missing_data(feature_matrix, master_feature_lst):
 
     return enriched_feature_matrix
 
-def write_feature_matrix(test_feat_mat, pros_feat_mat, test_feat_lst,
-        pros_feat_lst, patient_lst, out_fname=''):
+def write_feature_matrix(updrs_dct, test_feat_mat, pros_feat_mat, test_feat_lst,
+        pros_feat_lst, patient_lst, suffix):
 # def write_feature_matrix(feature_matrix, master_feature_lst, patient_lst,
 #     out_fname=''):
     '''
@@ -90,18 +88,21 @@ def write_feature_matrix(test_feat_mat, pros_feat_mat, test_feat_lst,
     death/time event.
     '''
     assert len(test_feat_mat) == len(pros_feat_mat)
-    if out_fname == '':
-        if isImputation:
-            out_fname = '%s/feature_matrix_%s_%s.txt' % (matrix_folder,
-                norm_type, num_dim)
-        else:
-            out_fname = '%s/feature_matrix_%s.txt' % (matrix_folder, norm_type)
+    out_fname = '%s/feature_matrix_%s.txt' % (matrix_folder, suffix)
+    # if out_fname == '':
+    #     if isImputation:
+    #         out_fname = '%s/feature_matrix_%s_%s.txt' % (matrix_folder,
+    #             norm_type, num_dim)
+    #     else:
+    #         out_fname = '%s/feature_matrix_%s.txt' % (matrix_folder, norm_type)
     out = open(out_fname, 'w')
-    out.write('patno\t%s\t%s\n' % ('\t'.join(test_feat_lst),
+    out.write('patno\tupdrs\t%s\t%s\n' % ('\t'.join(test_feat_lst),
         '\t'.join(pros_feat_lst)))
     for i, row in enumerate(test_feat_mat):
         # Write out the tests not in ProSNet.
-        out.write('%s\t%s\t' % (patient_lst[i], '\t'.join(map(str, row))))
+        patno = patient_lst[i]
+        out.write('%s\t%f\t%s\t' % (patno, updrs_dct[patno], '\t'.join(map(str,
+            row))))
         # Write out the ProSNet features.
         prosnet_features = pros_feat_mat[i]
         out.write('%s\n' % ('\t'.join(map(str, prosnet_features))))
@@ -168,7 +169,8 @@ def main():
         print 'Usage:python %s norm_type num_dim<optional> sim_thresh<optional>' % (
             sys.argv[0])
         exit()
-    global isImputation, matrix_folder, norm_type
+    # global isImputation, matrix_folder, norm_type
+    global matrix_folder, norm_type
     norm_type = sys.argv[1]
     assert norm_type in ['l1', 'l2', 'max']
     isImputation = False
@@ -193,28 +195,34 @@ def main():
     pros_feat_mat, pros_feat_lst = build_feature_matrix(pros_feat_dct_lst,
         pros_feat_lst, patient_lst)
 
-    print_sparsity_info(test_feat_mat)
-    print_sparsity_info(pros_feat_mat)
-
     matrix_folder = './data/feature_matrices'
     if not os.path.exists(matrix_folder):
         os.makedirs(matrix_folder)
     # Write out to file a unnormalized file.
-    write_feature_matrix(test_feat_mat, pros_feat_mat, test_feat_lst,
-        pros_feat_lst, patient_lst, '%s/unnormalized_feature_matrix.txt' %
-        matrix_folder)
+    write_feature_matrix(updrs_dct, test_feat_mat, pros_feat_mat, test_feat_lst,
+        pros_feat_lst, patient_lst, 'unnorm')
 
-    # Normalize feature matrix. TODO: tune type of normalization
+    # Normalize feature matrix. TODO: tune type of normalization. Before or
+    # after imputation?
     test_feat_mat = normalize(test_feat_mat, norm=norm_type, axis=0)
     pros_feat_mat = normalize(pros_feat_mat, norm=norm_type, axis=0)
 
     # Perform either mean imputation or embedding imputation.
     if isImputation:
         pros_feat_mat = impute_missing_data(pros_feat_mat, pros_feat_lst)
+        
+    pros_feat_mat = normalize(pros_feat_mat, norm=norm_type, axis=0)
 
     # Write out normalized matrix. Imputated matrix for ProSNet file.
-    write_feature_matrix(test_feat_mat, pros_feat_mat, test_feat_lst,
-        pros_feat_lst, patient_lst)
+    if isImputation:
+        suffix = '%s_%s_%s' % (norm_type, num_dim, sim_thresh)
+    else:
+        suffix = norm_type
+    write_feature_matrix(updrs_dct, test_feat_mat, pros_feat_mat, test_feat_lst,
+        pros_feat_lst, patient_lst, suffix)
+
+    print_sparsity_info(test_feat_mat)
+    print_sparsity_info(pros_feat_mat)
 
 if __name__ == '__main__':
     main()

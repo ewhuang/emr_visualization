@@ -609,12 +609,12 @@ def main():
     medical_condition_dct = read_medical_conditions(updrs_dct)[0]
 
     neuro_exam_dct = read_binary_tests('neuro', updrs_dct)[0]
-    pd_feat_dct = read_binary_tests('pd_features', updrs_dct)[0]    
+    pd_feat_dct = read_binary_tests('pd_features', updrs_dct)[0]
     rem_disorder_dct = read_binary_tests('rem_disorder', updrs_dct)[0]
 
     demographics_dct = read_demographics(updrs_dct)[0]
     pd_surgery_dct = read_pd_surgery(updrs_dct)[0]
-    pd_medication_dct = read_binary_tests('medication', updrs_dct)[0]    
+    pd_medication_dct = read_binary_tests('medication', updrs_dct)[0]
     mutation_dct = read_mutation_file(updrs_dct)[0]
 
     # This block not to be used in ProSNet network.
