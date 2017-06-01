@@ -56,8 +56,9 @@ def plot_histogram(updrs_lst):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', '--norm_type', help='normalization method: [l1, l2, max]')
-    parser.add_argument('-d', '--num_dim', help='number of ProSNet dimension')
+    parser.add_argument('-d', '--num_dim', help='number of ProSNet dimensions')
     parser.add_argument('-s', '--sim_thresh', help='similarity threshold for ProSNet imputation')
+    parser.add_argument('-w', '--where_norm', help='where to normalize: before or after (or both) ProSNet imputation')
     parser.add_argument('-p', '--n_pca_comp', help='number of PCA components')
     parser.add_argument('-t', '--tsne_init', help='t-SNE initialization method')
     return parser.parse_args()
@@ -68,7 +69,7 @@ def main():
     assert suffix in ['l1', 'l2', 'max']
 
     if args.num_dim != None:
-        suffix += '_%s_%s' % (args.num_dim, args.sim_thresh)
+        suffix += '_%s_%s_%s' % (args.num_dim, args.sim_thresh, args.where_norm)
 
     generate_directories()
 
@@ -76,7 +77,8 @@ def main():
 
     # TODO: currently not plotting histogram.
     # plot_histogram(updrs_lst)
-    # Normalize updrs_lst between -1 and 1.
+
+    # TODO: converting arbitrary intervals of UPDRS scores to colors.
     for i, e in enumerate(updrs_lst):
         if e < 50:
             updrs_lst[i] = 'black'
@@ -84,14 +86,10 @@ def main():
             updrs_lst[i] = 'blue'
         else:
             updrs_lst[i] = 'red'
-    # max_x, min_x = max(updrs_lst), min(updrs_lst)
-    # updrs_lst = [(x - min_x) / float(max_x - min_x) for x in updrs_lst]
 
     # PCA for ProSNet-enriched matrices.
     if args.num_dim != None:
-        # Right now, using two components for PCA.
         dim_reduc = PCA(n_components=int(args.n_pca_comp))
-        # dim_reduc = PCA(n_components=2)
     else:
         # Truncated SVD on the feature matrix for non-ProSNet. TODO: ncomponents = 50?
         dim_reduc = TruncatedSVD(n_components=50, n_iter=10, random_state=9305)

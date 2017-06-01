@@ -39,13 +39,16 @@ python process_loni_parkinsons.py
 2.  Build the patient feature matrices for baseline as well as normal run.
 
     ```bash
-    python build_patient_feature_matrix.py normalization_method num_dim sim_thresh
+    python build_patient_feature_matrix.py [-h] [-n NORM_TYPE] [-d NUM_DIM]
+                                                [-s SIM_THRESH] [-w WHERE_NORM]
     ```
-    normalization_method in ['l1', 'l2', 'max']
+    Only -n is required.
 
 ## Reducing dimensionality and visualizing the EMRs.
 
 1.  
     ```bash
-    python visualize_emrs.py normalization_method num_dim sim_thresh
+    python visualize_emrs.py [-h] [-n NORM_TYPE] [-d NUM_DIM] [-s SIM_THRESH]
+                                [-w WHERE_NORM] [-p N_PCA_COMP] [-t TSNE_INIT]
     ```
+    -n, -p, -t required.

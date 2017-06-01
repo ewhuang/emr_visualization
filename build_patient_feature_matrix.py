@@ -1,11 +1,12 @@
 ### Author: Edward Huang
 
+import argparse
 import numpy as np
 import os
 from process_loni_parkinsons import *
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import normalize
-import sys
+# import sys
 
 # This script creates the feature matrices to get ready for experiments.
 # Writes an unnormalized feature matrix, in addition to a normalized one,
@@ -39,12 +40,12 @@ def build_feature_matrix(feature_dct_list, master_feature_lst, patient_lst):
 
     return feature_matrix[:,good_indices], master_feature_lst
 
-def impute_missing_data(feature_matrix, master_feature_lst):
+def impute_missing_data(feature_matrix, master_feature_lst, num_dim, sim_thresh):
     '''
     Given the feature matrix and the column labels (master_feature_lst), impute
     the missing feature data by getting the Prosnet vectors.
     '''
-    def read_prosnet_output(master_feature_lst):
+    def read_prosnet_output(master_feature_lst, num_dim):
         '''
         Reads the output low-dimensional vectors created by prosnet.
         '''
@@ -55,7 +56,6 @@ def impute_missing_data(feature_matrix, master_feature_lst):
         for line in f:
             line = line.split()
             feature, vector = line[0], map(float, line[1:])
-            # TODO: convert nodes with underscores back to spaces.
             while '_' in feature:
                 feature = feature.replace('_', ' ')
             assert len(vector) == int(num_dim) and feature not in vector_dct
@@ -67,7 +67,7 @@ def impute_missing_data(feature_matrix, master_feature_lst):
             vector_matrix += [vector_dct[feature]]
         return np.array(vector_matrix)
 
-    vector_matrix = read_prosnet_output(master_feature_lst)
+    vector_matrix = read_prosnet_output(master_feature_lst, num_dim)
     similarity_matrix = np.abs(cosine_similarity(vector_matrix))
 
     similarity_matrix[similarity_matrix < sim_thresh] = 0
@@ -88,13 +88,7 @@ def write_feature_matrix(updrs_dct, test_feat_mat, pros_feat_mat, test_feat_lst,
     death/time event.
     '''
     assert len(test_feat_mat) == len(pros_feat_mat)
-    out_fname = '%s/feature_matrix_%s.txt' % (matrix_folder, suffix)
-    # if out_fname == '':
-    #     if isImputation:
-    #         out_fname = '%s/feature_matrix_%s_%s.txt' % (matrix_folder,
-    #             norm_type, num_dim)
-    #     else:
-    #         out_fname = '%s/feature_matrix_%s.txt' % (matrix_folder, norm_type)
+    out_fname = './data/feature_matrices/feature_matrix_%s.txt' % suffix
     out = open(out_fname, 'w')
     out.write('patno\tupdrs\t%s\t%s\n' % ('\t'.join(test_feat_lst),
         '\t'.join(pros_feat_lst)))
@@ -164,21 +158,16 @@ def create_dct_lst(feat_tuples):
                 print feature
     return feature_dct_list, master_feature_lst
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-n', '--norm_type', help='normalization method: [l1, l2, max]')
+    parser.add_argument('-d', '--num_dim', help='number of ProSNet dimensions')
+    parser.add_argument('-s', '--sim_thresh', help='threshold for cosine similarity between ProSNet vectors')
+    parser.add_argument('-w', '--where_norm', help='where to normalize: before or after (or both) ProSNet imputation')
+    return parser.parse_args()
+
 def main():
-    if len(sys.argv) not in [2, 4]:
-        print 'Usage:python %s norm_type num_dim<optional> sim_thresh<optional>' % (
-            sys.argv[0])
-        exit()
-    # global isImputation, matrix_folder, norm_type
-    global matrix_folder, norm_type
-    norm_type = sys.argv[1]
-    assert norm_type in ['l1', 'l2', 'max']
-    isImputation = False
-    if len(sys.argv) == 4:
-        isImputation = True
-        global num_dim, sim_thresh
-        num_dim, sim_thresh = sys.argv[2], float(sys.argv[3])
-        assert num_dim.isdigit()
+    args = parse_args()
 
     updrs_dct = get_updrs_dct()
     # Test tuples are features that are not used in the ProSNet network.
@@ -204,25 +193,27 @@ def main():
 
     # Normalize feature matrix. TODO: tune type of normalization. Before or
     # after imputation?
-    test_feat_mat = normalize(test_feat_mat, norm=norm_type, axis=0)
-    pros_feat_mat = normalize(pros_feat_mat, norm=norm_type, axis=0)
+    test_feat_mat = normalize(test_feat_mat, norm=args.norm_type, axis=0)
+    if args.where_norm in ['before', 'both']:
+        pros_feat_mat = normalize(pros_feat_mat, norm=args.norm_type, axis=0)
 
     # Perform either mean imputation or embedding imputation.
-    if isImputation:
-        pros_feat_mat = impute_missing_data(pros_feat_mat, pros_feat_lst)
-        
-    pros_feat_mat = normalize(pros_feat_mat, norm=norm_type, axis=0)
-
-    # Write out normalized matrix. Imputated matrix for ProSNet file.
-    if isImputation:
-        suffix = '%s_%s_%s' % (norm_type, num_dim, sim_thresh)
+    if args.num_dim != None:
+        pros_feat_mat = impute_missing_data(pros_feat_mat, pros_feat_lst,
+            args.num_dim, float(args.sim_thresh))
+        suffix = '%s_%s_%s_%s' % (args.norm_type, args.num_dim, args.sim_thresh,
+            args.where_norm)
     else:
-        suffix = norm_type
+        suffix = args.norm_type
+        
+    if args.where_norm in ['after', 'both']:
+        pros_feat_mat = normalize(pros_feat_mat, norm=args.norm_type, axis=0)
+
     write_feature_matrix(updrs_dct, test_feat_mat, pros_feat_mat, test_feat_lst,
         pros_feat_lst, patient_lst, suffix)
 
-    print_sparsity_info(test_feat_mat)
-    print_sparsity_info(pros_feat_mat)
+    # print_sparsity_info(test_feat_mat)
+    # print_sparsity_info(pros_feat_mat)
 
 if __name__ == '__main__':
     main()

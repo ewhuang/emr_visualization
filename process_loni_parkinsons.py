@@ -596,6 +596,22 @@ def read_mutation_file(updrs_dct):
     f.close()
     return mutation_dct, feature_set
 
+def read_patient_status(updrs_dct):
+    '''
+    Reads the patient status for each patient number.
+    '''
+    status_dct = {}
+    f = open('%s/Patient_Status.csv' % data_folder, 'r')
+    f.readline()
+    for line in reader(f):
+        patno, cat = line[0], line[2]
+        if patno not in updrs_dct or cat not in ['PD', 'SWEDD', 'HC']:
+            continue
+        assert patno not in status_dct
+        status_dct[patno] = cat
+    f.close()
+    return status_dct
+
 def main():
     updrs_dct = get_updrs_dct()
 
@@ -628,6 +644,8 @@ def main():
     semantic_dct = read_test_score('semantic', updrs_dct)[0]
     symbol_dct = read_test_score('symbol', updrs_dct)[0]
     # End block not to be used in ProSNet network.
+
+    status_dct = read_patient_status(updrs_dct)
 
     print 'Running tests...'
     # Test the UPDRS dictionary.
@@ -766,9 +784,14 @@ def main():
 
     # Test the PPMI mutation dictionary.
     assert '3210' not in mutation_dct
-    assert ('RAB29_MUT', 1) in mutation_dct['3800']
-    assert ('MAPT_MUT', 1) in mutation_dct['3004']
+    assert ('RAB29 MUT', 1) in mutation_dct['3800']
+    assert ('MAPT MUT', 1) in mutation_dct['3004']
 
+    # Test the patient status dictionary.
+    assert status_dct['3538'] == 'SWEDD'
+    assert '53286' not in status_dct
+    assert status_dct['3401'] == 'HC'
+    assert status_dct['3314'] == 'PD'
     print 'Finished tests!'
 
 if __name__ == '__main__':
