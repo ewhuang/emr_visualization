@@ -52,3 +52,11 @@ python process_loni_parkinsons.py
                                 [-w WHERE_NORM] [-p N_PCA_COMP] [-t TSNE_INIT]
     ```
     -n, -p, -t required.
+
+## Extra scripts for looking at the data.
+
+1.  Writes out all symptom features to file, one on each new line.
+
+    ```bash
+    python write_symptoms_to_file.py
+    ```

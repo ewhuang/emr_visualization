@@ -78,7 +78,7 @@ def impute_missing_data(feature_matrix, master_feature_lst, num_dim, sim_thresh)
 
     return enriched_feature_matrix
 
-def write_feature_matrix(updrs_dct, test_feat_mat, pros_feat_mat, test_feat_lst,
+def write_feature_matrix(label_dct, test_feat_mat, pros_feat_mat, test_feat_lst,
         pros_feat_lst, patient_lst, suffix):
 # def write_feature_matrix(feature_matrix, master_feature_lst, patient_lst,
 #     out_fname=''):
@@ -95,7 +95,8 @@ def write_feature_matrix(updrs_dct, test_feat_mat, pros_feat_mat, test_feat_lst,
     for i, row in enumerate(test_feat_mat):
         # Write out the tests not in ProSNet.
         patno = patient_lst[i]
-        out.write('%s\t%f\t%s\t' % (patno, updrs_dct[patno], '\t'.join(map(str,
+        # TODO: %s and %f, depending on what the labels are.
+        out.write('%s\t%s\t%s\t' % (patno, label_dct[patno], '\t'.join(map(str,
             row))))
         # Write out the ProSNet features.
         prosnet_features = pros_feat_mat[i]
@@ -115,29 +116,27 @@ def print_sparsity_info(feature_matrix):
     print 'average number of zeros:', num_zeros / float(feature_matrix.shape[0])
     print 'feature matrix shape:', feature_matrix.shape
 
-def get_non_prosnet_feat_tuples(updrs_dct):
+def get_non_prosnet_feat_tuples():
     '''
     Read each of the relevant spreadsheets that are not in ProSNet.
     '''
-    return (read_test_score('benton', updrs_dct), read_epworth_scale(
-        updrs_dct), read_family_history(updrs_dct), read_hvlt(updrs_dct),
-        read_test_score('lns', updrs_dct), read_test_score('schwab', updrs_dct),
-        read_test_score('montreal', updrs_dct), read_test_score('semantic',
-            updrs_dct), read_test_score('symbol', updrs_dct))
+    return (read_test_score('benton'), read_epworth_scale(),
+        read_family_history(), read_hvlt(), read_test_score('lns'),
+        read_test_score('schwab'), read_test_score('montreal'),
+        read_test_score('semantic'), read_test_score('symbol'))
 
-def get_prosnet_feat_tuples(updrs_dct):
+def get_prosnet_feat_tuples():
     '''
     Read each of the relevant spreadsheets that are in ProSNet.
     '''
     code_dct = read_code_file()
-    return (read_test_analysis('biospecimen', updrs_dct), read_test_analysis(
-        'concom_medications', updrs_dct), read_clinical_diagnosis(code_dct,
-        updrs_dct), read_cognitive_categorizations(updrs_dct),
-        read_medical_conditions(updrs_dct), read_binary_tests('neuro',
-            updrs_dct), read_binary_tests('pd_features', updrs_dct),
-        read_binary_tests('rem_disorder', updrs_dct), read_demographics(
-            updrs_dct), read_pd_surgery(updrs_dct), read_binary_tests(
-            'medication', updrs_dct), read_mutation_file(updrs_dct))
+    return (read_test_analysis('biospecimen'), read_test_analysis(
+        'concom_medications'), read_clinical_diagnosis(code_dct),
+    read_cognitive_categorizations(), read_medical_conditions(),
+    read_binary_tests('neuro'), read_binary_tests('pd_features'),
+    read_binary_tests('rem_disorder'), read_demographics(),
+    read_pd_surgery(), read_binary_tests('medication'),
+    read_mutation_file())
 
 def create_dct_lst(feat_tuples):
     '''
@@ -169,16 +168,18 @@ def parse_args():
 def main():
     args = parse_args()
 
-    updrs_dct = get_updrs_dct()
+    # TODO: currently using SWEDD, PD, and healthy control as labels.
+    # label_dct = get_updrs_dct()
+    label_dct = read_patient_status()
     # Test tuples are features that are not used in the ProSNet network.
-    test_feat_tuples = get_non_prosnet_feat_tuples(updrs_dct)
-    prosnet_feat_tuples = get_prosnet_feat_tuples(updrs_dct)
+    test_feat_tuples = get_non_prosnet_feat_tuples()
+    prosnet_feat_tuples = get_prosnet_feat_tuples()
 
     test_feat_dct_lst, test_feat_lst = create_dct_lst(test_feat_tuples)
     pros_feat_dct_lst, pros_feat_lst = create_dct_lst(prosnet_feat_tuples)
 
     # Create the numpy array, and remove bad columns.
-    patient_lst = updrs_dct.keys()
+    patient_lst = label_dct.keys()
     test_feat_mat, test_feat_lst = build_feature_matrix(test_feat_dct_lst,
         test_feat_lst, patient_lst)
     pros_feat_mat, pros_feat_lst = build_feature_matrix(pros_feat_dct_lst,
@@ -188,7 +189,7 @@ def main():
     if not os.path.exists(matrix_folder):
         os.makedirs(matrix_folder)
     # Write out to file a unnormalized file.
-    write_feature_matrix(updrs_dct, test_feat_mat, pros_feat_mat, test_feat_lst,
+    write_feature_matrix(label_dct, test_feat_mat, pros_feat_mat, test_feat_lst,
         pros_feat_lst, patient_lst, 'unnorm')
 
     # Normalize feature matrix. TODO: tune type of normalization. Before or
@@ -209,7 +210,7 @@ def main():
     if args.where_norm in ['after', 'both']:
         pros_feat_mat = normalize(pros_feat_mat, norm=args.norm_type, axis=0)
 
-    write_feature_matrix(updrs_dct, test_feat_mat, pros_feat_mat, test_feat_lst,
+    write_feature_matrix(label_dct, test_feat_mat, pros_feat_mat, test_feat_lst,
         pros_feat_lst, patient_lst, suffix)
 
     # print_sparsity_info(test_feat_mat)

@@ -79,7 +79,7 @@ def read_code_file():
     assert code_dct['ind_upsit']['SCENT_37_CORRECT']['0'] == 'Incorrect'
     return code_dct
 
-def read_test_score(test_type, updrs_dct):
+def read_test_score(test_type):
     '''
     Returns a dictionary mapping PATNOs to a variety of test results.
     Includes Benton, letter-number sequencing, modified Schwab-England, and
@@ -120,7 +120,7 @@ def read_test_score(test_type, updrs_dct):
     for line in it:
         patno, event_id, score = [line[feat_idx] for feat_idx in feat_idx_lst]
         # Skip patients without UPDRS scores or non-baseline visits.
-        if patno not in updrs_dct or event_id != 'BL' or score == '':
+        if event_id != 'BL' or score == '':
             continue
         # patno, score = line[patno_idx], line[score_idx]
         assert patno not in test_dct or patno == '54186'
@@ -128,7 +128,7 @@ def read_test_score(test_type, updrs_dct):
     f.close()
     return test_dct, set([test_name])
 
-def read_test_analysis(test_type, updrs_dct):
+def read_test_analysis(test_type):
     '''
     Returns a dictionary mapping PATNOs to test results.
     Key: PATNO -> str
@@ -161,9 +161,6 @@ def read_test_analysis(test_type, updrs_dct):
             if test_name not in who_to_stitch_dct:
                 continue
             test_name = who_to_stitch_dct[test_name]
-        # Skip patients without UPDRS scores.
-        if patno not in updrs_dct:
-            continue
         # Only biospecimen data contains BL visits.
         if test_type == 'biospecimen' and event_id != 'BL':
             continue
@@ -192,7 +189,7 @@ def read_test_analysis(test_type, updrs_dct):
         test_dct[patno] = test_dct[patno].items()
     return test_dct, feature_set
 
-def read_clinical_diagnosis(code_dct, updrs_dct):
+def read_clinical_diagnosis(code_dct):
     '''
     Returns the major clinical diagnosis and additional notes for each patient.
     '''
@@ -210,7 +207,7 @@ def read_clinical_diagnosis(code_dct, updrs_dct):
         patno, event_id, pag_name, ps_lvl, prim_diag = (line[feat_idx] for
             feat_idx in feat_idx_lst)
         # Skip patients without UPDRS scores or non-baseline visits.
-        if patno not in updrs_dct or event_id != 'BL' or ps_lvl != '1':
+        if event_id != 'BL' or ps_lvl != '1':
             continue
         # Update the patient in the dictionary.
         assert patno not in clinical_diag_dct
@@ -266,7 +263,7 @@ def read_clinical_diagnosis(code_dct, updrs_dct):
 #     f.close()
 #     return cognitive_assessment_dct
 
-def read_cognitive_categorizations(updrs_dct):
+def read_cognitive_categorizations():
     '''
     Returns a dictionary mapping PATNOs to cognitive categorizations.
     '''
@@ -283,7 +280,7 @@ def read_cognitive_categorizations(updrs_dct):
             for feat_idx in feat_idx_lst)
 
         # Skip diagnoses with low confidence.
-        if patno not in updrs_dct or event_id != 'BL' or cogdxcl != '1':
+        if event_id != 'BL' or cogdxcl != '1':
             continue
         assert patno not in cognitive_categorization_dct
         cognitive_categorization_dct[patno] = []
@@ -295,7 +292,7 @@ def read_cognitive_categorizations(updrs_dct):
     f.close()
     return cognitive_categorization_dct, ['COGDECLN', 'FNCDTCOG', 'COGSTATE']
 
-def read_medical_conditions(updrs_dct):
+def read_medical_conditions():
     '''
     Maps PATNOs to current medical conditions.
     '''
@@ -309,8 +306,6 @@ def read_medical_conditions(updrs_dct):
             resolved_idx = line.index('RESOLVD')
             continue
         patno, resolved = line[patno_idx], line[resolved_idx]
-        if patno not in updrs_dct:
-            continue
         if patno not in medical_condition_dct:
             medical_condition_dct[patno] = []
         term = line[term_idx]
@@ -321,7 +316,7 @@ def read_medical_conditions(updrs_dct):
     f.close()
     return medical_condition_dct, feature_set
 
-def read_epworth_scale(updrs_dct):
+def read_epworth_scale():
     '''
     Maps PATNOs to epworth sleepiness scales. These are not to be used as
     features in the ProSNet network.
@@ -338,7 +333,7 @@ def read_epworth_scale(updrs_dct):
     for line in it:
         patno, event_id = line[patno_idx], line[event_idx]
         # Skip non-baseline visits.
-        if patno not in updrs_dct or event_id != 'BL':
+        if event_id != 'BL':
             continue
         feat_val_lst = [line[feat_idx] for feat_idx in feat_idx_lst]
         # Update the dictionary with the current patient.
@@ -354,7 +349,7 @@ def read_epworth_scale(updrs_dct):
 
     return epworth_dct, feature_set
 
-def read_family_history(updrs_dct):
+def read_family_history():
     '''
     Maps PATNOs to family history of PD. These are not to be used as features
     in the ProSNet network.
@@ -371,8 +366,6 @@ def read_family_history(updrs_dct):
     for i, line in enumerate(reader(f)):
         patno = line[patno_idx]
 
-        if patno not in updrs_dct:
-            continue
         # PATNO 54186 has duplicate entries of BL.
         assert patno not in family_history_dct or patno == '54186'
         family_history_dct[patno] = []
@@ -420,7 +413,7 @@ def read_family_history(updrs_dct):
 #     f.close()
 #     return rbd_dct
 
-def read_binary_tests(exam_type, updrs_dct):
+def read_binary_tests(exam_type):
     '''
     Maps PATNOs to their exam results, whether there are any abnormalities.
     '''
@@ -454,7 +447,7 @@ def read_binary_tests(exam_type, updrs_dct):
     exam_idx_lst = [header.index(exam) for exam in exam_name_lst]
     for line in it:
         patno, event_id = line[patno_idx], line[event_idx]
-        if patno not in updrs_dct or event_id != 'BL':
+        if event_id != 'BL':
             continue
 
         # Again, a duplicate entry.
@@ -470,7 +463,7 @@ def read_binary_tests(exam_type, updrs_dct):
     f.close()
     return binary_test_dct, feature_set
 
-def read_hvlt(updrs_dct):
+def read_hvlt():
     '''
     Maps PATNOs to Hopkins Test dictionary. Not to be used with ProSNet.
     '''
@@ -487,7 +480,7 @@ def read_hvlt(updrs_dct):
     comm_idx, age_idx = header.index('comm'), header.index('AGE_ASSESS_HVLT')
     for line in it:
         patno, event_id = line[patno_idx], line[event_idx]
-        if patno not in updrs_dct or event_id != 'BL':
+        if event_id != 'BL':
             continue
         # Skip patients that have comments or do not have age recorded.
         comment, age = line[comm_idx], line[age_idx]
@@ -506,7 +499,7 @@ def read_hvlt(updrs_dct):
 
     return hvlt_dct, feature_set
 
-def read_demographics(updrs_dct):
+def read_demographics():
     demographics_dct, feature_set = {}, set([])
 
     gender_dct = {'0':'Female of child bearing potential',
@@ -521,7 +514,8 @@ def read_demographics(updrs_dct):
     patno_idx, gender_idx = header.index('PATNO'), header.index('GENDER')
     for line in it:
         patno, gender = line[patno_idx], line[gender_idx]
-        if patno not in updrs_dct:
+        # Skip patients with no gender information.
+        if gender == '':
             continue
         gender = gender_dct[gender]
         # Update the patient.
@@ -540,7 +534,7 @@ def read_demographics(updrs_dct):
     f.close()
     return demographics_dct, feature_set
 
-def read_pd_surgery(updrs_dct):
+def read_pd_surgery():
     pd_surgery_dct = {}
 
     feat_name_lst = ('PATNO', 'EVENT_ID', 'PDSURG', 'PDSURGTP', 'PDSLGPI',
@@ -556,7 +550,7 @@ def read_pd_surgery(updrs_dct):
     for line in it:
         patno, event_id, pdsurg, pdsurgtp, pdslgpi, pdslstn = (line[feat_idx]
             for feat_idx in feat_idx_lst)
-        if patno not in updrs_dct or event_id != 'BL' or pdsurg != '1':
+        if event_id != 'BL' or pdsurg != '1':
             continue
         # Skip surgery of type "other".
         if pdsurgtp == '3':
@@ -575,7 +569,7 @@ def read_pd_surgery(updrs_dct):
 
     return pd_surgery_dct, feature_set
 
-def read_mutation_file(updrs_dct):
+def read_mutation_file():
     '''
     Reads the PPMI mutation file, and records the genes with mutations for each
     patient. No header line.
@@ -585,8 +579,6 @@ def read_mutation_file(updrs_dct):
     f = open('./data/PPMI_indels.txt', 'r')
     for line in f:
         patno, mutated_gene, att_1, att_2 = line.strip().split('\t')
-        if patno not in updrs_dct:
-            continue
         # Add the mutation tag line to the gene.
         mutated_gene += ' MUT'
         if patno not in mutation_dct:
@@ -596,62 +588,66 @@ def read_mutation_file(updrs_dct):
     f.close()
     return mutation_dct, feature_set
 
-def read_patient_status(updrs_dct):
+def read_patient_status():
     '''
     Reads the patient status for each patient number.
     '''
     status_dct = {}
-    f = open('%s/Patient_Status.csv' % data_folder, 'r')
+    f = open('%s/Biospecimen_Analysis_Results.csv' % data_folder, 'r')
     f.readline()
     for line in reader(f):
-        patno, cat = line[0], line[2]
-        if patno not in updrs_dct or cat not in ['PD', 'SWEDD', 'HC']:
+        patno, diagnosis = line[0], line[2]
+        if diagnosis not in ['PD', 'SWEDD', 'Control'] or patno in status_dct:
             continue
-        assert patno not in status_dct
-        status_dct[patno] = cat
+        status_dct[patno] = diagnosis
     f.close()
     return status_dct
 
 def main():
     updrs_dct = get_updrs_dct()
+    status_dct = read_patient_status()
 
-    biospecimen_dct = read_test_analysis('biospecimen', updrs_dct)[0]
-    concom_medication_dct = read_test_analysis('concom_medications', updrs_dct)[0]
+    biospecimen_dct = read_test_analysis('biospecimen')[0]
+    concom_medication_dct = read_test_analysis('concom_medications')[0]
 
     code_dct = read_code_file()
-    clinical_diag_dct = read_clinical_diagnosis(code_dct, updrs_dct)[0]
+    clinical_diag_dct = read_clinical_diagnosis(code_dct)[0]
 
-    cognitive_categorization_dct = read_cognitive_categorizations(updrs_dct)[0]
-    medical_condition_dct = read_medical_conditions(updrs_dct)[0]
+    cognitive_categorization_dct = read_cognitive_categorizations()[0]
+    medical_condition_dct = read_medical_conditions()[0]
 
-    neuro_exam_dct = read_binary_tests('neuro', updrs_dct)[0]
-    pd_feat_dct = read_binary_tests('pd_features', updrs_dct)[0]
-    rem_disorder_dct = read_binary_tests('rem_disorder', updrs_dct)[0]
+    neuro_exam_dct = read_binary_tests('neuro')[0]
+    pd_feat_dct = read_binary_tests('pd_features')[0]
+    rem_disorder_dct = read_binary_tests('rem_disorder')[0]
 
-    demographics_dct = read_demographics(updrs_dct)[0]
-    pd_surgery_dct = read_pd_surgery(updrs_dct)[0]
-    pd_medication_dct = read_binary_tests('medication', updrs_dct)[0]
-    mutation_dct = read_mutation_file(updrs_dct)[0]
+    demographics_dct = read_demographics()[0]
+    pd_surgery_dct = read_pd_surgery()[0]
+    pd_medication_dct = read_binary_tests('medication')[0]
+    mutation_dct = read_mutation_file()[0]
 
     # This block not to be used in ProSNet network.
-    line_orientation_dct = read_test_score('benton', updrs_dct)[0]
-    epworth_dct = read_epworth_scale(updrs_dct)[0]
-    family_history_dct = read_family_history(updrs_dct)[0]
-    hvlt_dct = read_hvlt(updrs_dct)[0]
-    lns_dct = read_test_score('lns', updrs_dct)[0]
-    schwab_dct = read_test_score('schwab', updrs_dct)[0]
-    moca_dct = read_test_score('montreal', updrs_dct)[0]
-    semantic_dct = read_test_score('semantic', updrs_dct)[0]
-    symbol_dct = read_test_score('symbol', updrs_dct)[0]
+    line_orientation_dct = read_test_score('benton')[0]
+    epworth_dct = read_epworth_scale()[0]
+    family_history_dct = read_family_history()[0]
+    hvlt_dct = read_hvlt()[0]
+    lns_dct = read_test_score('lns')[0]
+    schwab_dct = read_test_score('schwab')[0]
+    moca_dct = read_test_score('montreal')[0]
+    semantic_dct = read_test_score('semantic')[0]
+    symbol_dct = read_test_score('symbol')[0]
     # End block not to be used in ProSNet network.
-
-    status_dct = read_patient_status(updrs_dct)
 
     print 'Running tests...'
     # Test the UPDRS dictionary.
     assert updrs_dct['3400'] == 51
     assert '3210' not in updrs_dct
 
+    # Test the patient status dictionary.
+    assert status_dct['3538'] == 'SWEDD'
+    assert '53286' not in status_dct
+    assert status_dct['3401'] == 'Control'
+    assert status_dct['3314'] == 'PD'
+    
     # # Test the adverse event dictionary.
     # assert adverse_event_dct['3226'] == {'BACK SORENESS':[1.0, 2.0]}
     # assert adverse_event_dct['52215'] == {'SORENESS AT LP SITE':[1.0]}
@@ -783,15 +779,9 @@ def main():
     assert pd_medication_dct['41288'] == [('ONDOPAG', 1)]
 
     # Test the PPMI mutation dictionary.
-    assert '3210' not in mutation_dct
     assert ('RAB29 MUT', 1) in mutation_dct['3800']
     assert ('MAPT MUT', 1) in mutation_dct['3004']
 
-    # Test the patient status dictionary.
-    assert status_dct['3538'] == 'SWEDD'
-    assert '53286' not in status_dct
-    assert status_dct['3401'] == 'HC'
-    assert status_dct['3314'] == 'PD'
     print 'Finished tests!'
 
 if __name__ == '__main__':

@@ -146,31 +146,28 @@ def get_spreadsheet_results():
     Returns a dictionary mapping some key, denoting the spreadsheet, to the 
     dictionary of that spreadsheet's results. Dictionary of dictionaries.
     '''
-    updrs_dct = get_updrs_dct()
     f_tuples = []
     # Medical tests.
-    test_dct = get_attributes([read_test_analysis('biospecimen', updrs_dct),
-        read_binary_tests('neuro', updrs_dct), read_binary_tests('pd_features',
-            updrs_dct), read_cognitive_categorizations(updrs_dct),
-            read_pd_surgery(updrs_dct)])
+    test_dct = get_attributes([read_test_analysis('biospecimen'),
+        read_binary_tests('neuro'), read_binary_tests('pd_features'),
+        read_cognitive_categorizations(), read_pd_surgery()])
     f_tuples += [('t', test_dct)]
     # Symptoms.
     code_dct = read_code_file()
-    symp_dct = get_attributes([read_clinical_diagnosis(code_dct, updrs_dct),
-        read_medical_conditions(updrs_dct), read_binary_tests('rem_disorder',
-            updrs_dct)])
+    symp_dct = get_attributes([read_clinical_diagnosis(code_dct),
+        read_medical_conditions(), read_binary_tests('rem_disorder')])
     f_tuples += [('s', symp_dct)]
     # Demographics.
-    demo_dct = get_attributes([read_demographics(updrs_dct)])
+    demo_dct = get_attributes([read_demographics()])
     f_tuples += [('m', demo_dct)]
 
     # Drugs.
-    drug_dct = get_attributes([read_test_analysis('concom_medications',
-        updrs_dct), read_binary_tests('medication', updrs_dct)])
+    drug_dct = get_attributes([read_test_analysis('concom_medications'),
+        read_binary_tests('medication')])
     f_tuples += [('d', drug_dct)]
 
     # Gene mutations.
-    mutation_dct = get_attributes([read_mutation_file(updrs_dct)])
+    mutation_dct = get_attributes([read_mutation_file()])
     f_tuples += [('g', mutation_dct)]
 
     return f_tuples
@@ -214,7 +211,7 @@ def main():
 
     edge_out.close()
     node_out.close()
-    
+
     # Run prosnet. Outputs the low-dimensional vectors into files.
     run_prosnet()
 

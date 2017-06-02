@@ -40,6 +40,7 @@ def read_feature_matrix(suffix):
             continue
         assert len(feature_list) == len(master_feature_list)
         feature_matrix += [map(float, feature_list)]
+        # TODO: SWEDD stuff won't be floats.
         updrs_lst += [float(line[1])]
     f.close()
 
