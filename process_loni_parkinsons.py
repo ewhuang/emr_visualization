@@ -7,7 +7,7 @@ import json
 
 data_folder = './data/parkinsons_loni'
 
-def read_updrs_file(fname, updrs_dct):
+def read_updrs_file(fname, updrs_dct, updrs_score_names):
     '''
     Reads the scores for all attributes in the MDS-UPDRS file.
     '''
@@ -25,6 +25,8 @@ def read_updrs_file(fname, updrs_dct):
                 start_idx = line.index('INFODT')
             else:
                 start_idx = line.index('NUPSOURC')
+            header = line[start_idx + 1:end_idx]
+            updrs_score_names += header
             continue
         event_id, patno = line[event_idx], line[patno_idx]
         # Only use the baseline visits. Also skip duplicate entries.
@@ -32,11 +34,16 @@ def read_updrs_file(fname, updrs_dct):
             continue
         # Get the score list between the start and end indices.
         score_list = line[start_idx + 1:end_idx]
-        score_list = [int(score) for score in score_list if score != '' ]
+        score_list = [int(score) if score != '' else 0 for score in score_list]
+        assert len(score_list) == len(header)
         # Update the score dictionary.
         if patno not in updrs_dct:
-            updrs_dct[patno] = 0
-        updrs_dct[patno] += sum(score_list)
+            # updrs_dct[patno] = 0
+            updrs_dct[patno] = {}
+        # updrs_dct[patno] += sum(score_list)
+        for score_idx, score in enumerate(score_list):
+            assert score <= 5
+            updrs_dct[patno][header[score_idx]] = score
         # Update the list of patients seen in this spreadsheet.
         current_patient_set.add(patno)
     f.close()
@@ -45,13 +52,13 @@ def get_updrs_dct():
     '''
     Returns a dictionary mapping patients to the summed UPDRS scores.
     '''
-    updrs_dct = {}
+    updrs_dct, updrs_score_names = {}, []
     # Sum up the scores to compute a label for each patient.
     for fname in ('MDS_UPDRS_Part_I', 'MDS_UPDRS_Part_I__Patient_Questionnaire',
         'MDS_UPDRS_Part_II__Patient_Questionnaire',
         'MDS_UPDRS_Part_III__Post_Dose_', 'MDS_UPDRS_Part_IV'):
-        read_updrs_file(fname, updrs_dct)
-    return updrs_dct
+        read_updrs_file(fname, updrs_dct, updrs_score_names)
+    return updrs_dct, updrs_score_names
 
 def read_code_file():
     '''
@@ -163,6 +170,10 @@ def read_test_analysis(test_type):
             test_name = who_to_stitch_dct[test_name]
         # Only biospecimen data contains BL visits.
         if test_type == 'biospecimen' and event_id != 'BL':
+            continue
+        # Skip total tau as a feature, since it can be used as a label.
+        if test_name == 'Total tau':
+            assert test_type == 'biospecimen'
             continue
         # Attempt converting test value to float.
         try:
@@ -569,28 +580,58 @@ def read_pd_surgery():
 
     return pd_surgery_dct, feature_set
 
-def read_mutation_file():
+def read_snp_fisher():
+    '''
+    Gets the SNPs deemed interesting by Fisher's test.
+    '''
+    good_snp_set = set([])
+    f = open('./data/ppmi/snp_fisher_test.tsv', 'r')
+    f.readline()
+    for line in f:
+        line = line.split('\t')
+        snp, p_value = line[0], float(line[5])
+        assert 'rs' in snp
+        if p_value < 0.01:
+            good_snp_set.add(snp)
+    f.close()
+    return good_snp_set
+
+def read_mutation_file(good_snp_set, mutation_dct, feature_set, fname):
     '''
     Reads the PPMI mutation file, and records the genes with mutations for each
     patient. No header line.
     '''
-    mutation_dct, feature_set = {}, set([])
-    # f = open('./data/PPMI_mutation.txt', 'r')
-    f = open('./data/PPMI_indels.txt', 'r')
+    assert fname in ['indels', 'mutation']
+    f = open('./data/ppmi/PPMI_%s.txt' % fname, 'r')
     for line in f:
-        patno, mutated_gene, att_1, att_2 = line.strip().split('\t')
+        patno, mutated_gene_lst, att_1, exonic, snp = line.strip().split('\t')
+        if snp not in good_snp_set:
+            continue
         # Add the mutation tag line to the gene.
-        mutated_gene += ' MUT'
         if patno not in mutation_dct:
             mutation_dct[patno] = set([])
-        mutation_dct[patno].add((mutated_gene, 1))
-        feature_set.add(mutated_gene)
+        mutated_gene_lst = mutated_gene_lst.split(',')
+        for mutated_gene in mutated_gene_lst:
+            mutation_dct[patno].add((mutated_gene, 1))
+            feature_set.add(mutated_gene)
     f.close()
+
+def read_snp_mutations():
+    '''
+    Returns the dictionary of SNP mutations for each patient.
+    '''
+    good_snp_set = read_snp_fisher()
+
+    mutation_dct, feature_set = {}, set([])
+    # f = open('./data/PPMI_mutation.txt', 'r')
+    # f = open('./data/PPMI_indels.txt', 'r')
+    read_mutation_file(good_snp_set, mutation_dct, feature_set, 'indels')
+    read_mutation_file(good_snp_set, mutation_dct, feature_set, 'mutation')
     return mutation_dct, feature_set
 
 def read_patient_status():
     '''
-    Reads the patient status for each patient number.
+    Reads the patient status for each patient number. Can be used as a label.
     '''
     status_dct = {}
     f = open('%s/Biospecimen_Analysis_Results.csv' % data_folder, 'r')
@@ -603,9 +644,28 @@ def read_patient_status():
     f.close()
     return status_dct
 
+def read_total_tau():
+    '''
+    Reads the total tau for each patient.
+    '''
+    status_dct = {}
+    f = open('%s/Biospecimen_Analysis_Results.csv' % data_folder, 'r')
+    f.readline()
+    for line in reader(f):
+        patno, event_id, test_name, tau_value = line[0], line[3], line[5], line[6]
+        if test_name != 'Total tau' or event_id != 'BL':
+            continue
+        # Skip duplicates.
+        if patno in status_dct:
+            continue
+        status_dct[patno] = float(tau_value)
+    f.close()
+    return status_dct
+
 def main():
     updrs_dct = get_updrs_dct()
     status_dct = read_patient_status()
+    tau_dct = read_total_tau()
 
     biospecimen_dct = read_test_analysis('biospecimen')[0]
     concom_medication_dct = read_test_analysis('concom_medications')[0]
@@ -623,7 +683,7 @@ def main():
     demographics_dct = read_demographics()[0]
     pd_surgery_dct = read_pd_surgery()[0]
     pd_medication_dct = read_binary_tests('medication')[0]
-    mutation_dct = read_mutation_file()[0]
+    mutation_dct = read_snp_mutations()[0]
 
     # This block not to be used in ProSNet network.
     line_orientation_dct = read_test_score('benton')[0]
@@ -639,14 +699,21 @@ def main():
 
     print 'Running tests...'
     # Test the UPDRS dictionary.
-    assert updrs_dct['3400'] == 51
+    assert sum(updrs_dct['3400'].values()) == 51
     assert '3210' not in updrs_dct
+    assert updrs_dct['3406']['NP1ANXS'] == 2
+    assert updrs_dct['40725']['NP2EAT'] == 0
+    assert updrs_dct['56558']['NP4DYSTN'] == 4
 
     # Test the patient status dictionary.
     assert status_dct['3538'] == 'SWEDD'
     assert '53286' not in status_dct
     assert status_dct['3401'] == 'Control'
     assert status_dct['3314'] == 'PD'
+
+    # Test the total tau dictionary.
+    assert tau_dct['4065'] == 41.5
+    assert tau_dct['4064'] == 62.9
     
     # # Test the adverse event dictionary.
     # assert adverse_event_dct['3226'] == {'BACK SORENESS':[1.0, 2.0]}
@@ -779,8 +846,10 @@ def main():
     assert pd_medication_dct['41288'] == [('ONDOPAG', 1)]
 
     # Test the PPMI mutation dictionary.
-    assert ('RAB29 MUT', 1) in mutation_dct['3800']
-    assert ('MAPT MUT', 1) in mutation_dct['3004']
+    assert ('ANXA8L1', 1) in mutation_dct['4080']
+    assert ('CTSLP2', 1) in mutation_dct['4080']
+    assert ('VAPB', 1) in mutation_dct['3633']
+    assert ('KIAA1033', 1) in mutation_dct['3452']
 
     print 'Finished tests!'
 

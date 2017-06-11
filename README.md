@@ -1,21 +1,7 @@
 # emr_visualization
 ## Author: Edward Huang
 
-## Preprocessing scripts for reading data.
-
-### Preprocessing the MIMIC III data.
-
-```bash
-python process_mimic.py
-```
-
-### Preprocessing the LONI Parkinson's disease data.
-
-```bash
-python process_loni_parkinsons.py
-```
-
-## Obtaining external chemical-chemical network.
+## Preprocessing work for the LONI Parkinson's disease dataset.
 
 1.  Call on the STITCH API to fetch batches of files containing chemical-drug
     interactions, as well as outputting a dictionary mapping WHO drug IDs to
@@ -25,8 +11,16 @@ python process_loni_parkinsons.py
     python call_stitch_api.py
     ```
 
-2.  Download PPI network from HumanNet.
+2.  Find interesting SNPs that are relevant to Parkinson's disease. Creates two
+    files: ./data/ppmi/snp_healthy_freq.tsv, which shows the top SNPs ranked
+    by their rareness in healthy populations. ./datappmi/snp_fisher_test.tsv,
+    which shows the top SNPs as ranked by enrichments in gene mutations between
+    PD patients and healthy patients.
 
+    ```bash
+    python snp_fisher.py [-h] [-t SNP_TYPE]
+    ```
+    SNP_TYPE in ['wgs', 'wes']
 
 ## Running ProSNet.
 
@@ -41,8 +35,9 @@ python process_loni_parkinsons.py
     ```bash
     python build_patient_feature_matrix.py [-h] [-n NORM_TYPE] [-d NUM_DIM]
                                                 [-s SIM_THRESH] [-w WHERE_NORM]
+                                                [-l LABEL_TYPE]
     ```
-    Only -n is required.
+    Only -n and -l are required.
 
 ## Reducing dimensionality and visualizing the EMRs.
 

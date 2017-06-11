@@ -51,7 +51,7 @@ def impute_missing_data(feature_matrix, master_feature_lst, num_dim, sim_thresh)
         '''
         vector_dct = {}
         # 450 is the last iteration number.
-        f = open('./data/prosnet_data/embed_%s_450.txt' % num_dim, 'r')
+        f = open('./data/prosnet_data/embed_%s_500.txt' % num_dim, 'r')
         f.readline()
         for line in f:
             line = line.split()
@@ -78,8 +78,8 @@ def impute_missing_data(feature_matrix, master_feature_lst, num_dim, sim_thresh)
 
     return enriched_feature_matrix
 
-def write_feature_matrix(label_dct, test_feat_mat, pros_feat_mat, test_feat_lst,
-        pros_feat_lst, patient_lst, suffix):
+def write_feature_matrix(test_feat_mat, pros_feat_mat, test_feat_lst,
+    pros_feat_lst, patient_lst, suffix):
 # def write_feature_matrix(feature_matrix, master_feature_lst, patient_lst,
 #     out_fname=''):
     '''
@@ -88,16 +88,15 @@ def write_feature_matrix(label_dct, test_feat_mat, pros_feat_mat, test_feat_lst,
     death/time event.
     '''
     assert len(test_feat_mat) == len(pros_feat_mat)
-    out_fname = './data/feature_matrices/feature_matrix_%s.txt' % suffix
+    out_fname = './data/feature_matrices/feature_matrix_%s.tsv' % suffix
     out = open(out_fname, 'w')
-    out.write('patno\tupdrs\t%s\t%s\n' % ('\t'.join(test_feat_lst),
+    out.write('patno\t%s\t%s\n' % ('\t'.join(test_feat_lst),
         '\t'.join(pros_feat_lst)))
     for i, row in enumerate(test_feat_mat):
         # Write out the tests not in ProSNet.
         patno = patient_lst[i]
         # TODO: %s and %f, depending on what the labels are.
-        out.write('%s\t%s\t%s\t' % (patno, label_dct[patno], '\t'.join(map(str,
-            row))))
+        out.write('%s\t%s\t' % (patno, '\t'.join(map(str, row))))
         # Write out the ProSNet features.
         prosnet_features = pros_feat_mat[i]
         out.write('%s\n' % ('\t'.join(map(str, prosnet_features))))
@@ -130,13 +129,13 @@ def get_prosnet_feat_tuples():
     Read each of the relevant spreadsheets that are in ProSNet.
     '''
     code_dct = read_code_file()
-    return (read_test_analysis('biospecimen'), read_test_analysis(
-        'concom_medications'), read_clinical_diagnosis(code_dct),
-    read_cognitive_categorizations(), read_medical_conditions(),
-    read_binary_tests('neuro'), read_binary_tests('pd_features'),
-    read_binary_tests('rem_disorder'), read_demographics(),
-    read_pd_surgery(), read_binary_tests('medication'),
-    read_mutation_file())
+    # Make sure SNP mutations comes before biospecimen, since they share feature 'APP'.
+    return (read_snp_mutations(), read_test_analysis('biospecimen'),
+        read_test_analysis('concom_medications'),
+        read_clinical_diagnosis(code_dct), read_cognitive_categorizations(),
+        read_medical_conditions(), read_binary_tests('neuro'),
+        read_binary_tests('pd_features'), read_binary_tests('rem_disorder'),
+        read_demographics(), read_pd_surgery(), read_binary_tests('medication'))
 
 def create_dct_lst(feat_tuples):
     '''
@@ -163,14 +162,24 @@ def parse_args():
     parser.add_argument('-d', '--num_dim', help='number of ProSNet dimensions')
     parser.add_argument('-s', '--sim_thresh', help='threshold for cosine similarity between ProSNet vectors')
     parser.add_argument('-w', '--where_norm', help='where to normalize: before or after (or both) ProSNet imputation')
-    return parser.parse_args()
+    parser.add_argument('-l', '--label_type', help='Use the patients that have this label')
+    args = parser.parse_args()
+    assert args.norm_type in ['max', 'l1', 'l2']
+    assert args.where_norm in ['before', 'after', 'both', None]
+    assert args.label_type in ['updrs', 'status', 'tau']
+    return args
 
 def main():
     args = parse_args()
 
-    # TODO: currently using SWEDD, PD, and healthy control as labels.
-    # label_dct = get_updrs_dct()
-    label_dct = read_patient_status()
+    # TODO: leaving labels out of the feature matrix.
+    label_type = args.label_type
+    if label_type == 'updrs':
+        label_dct = get_updrs_dct()[0]
+    elif label_dct == 'status': # PD, SWEDD, Healthy Control.
+        label_dct = read_patient_status()
+    elif label_dct == 'tau':
+        label_dct = read_total_tau()
     # Test tuples are features that are not used in the ProSNet network.
     test_feat_tuples = get_non_prosnet_feat_tuples()
     prosnet_feat_tuples = get_prosnet_feat_tuples()
@@ -189,7 +198,7 @@ def main():
     if not os.path.exists(matrix_folder):
         os.makedirs(matrix_folder)
     # Write out to file a unnormalized file.
-    write_feature_matrix(label_dct, test_feat_mat, pros_feat_mat, test_feat_lst,
+    write_feature_matrix(test_feat_mat, pros_feat_mat, test_feat_lst,
         pros_feat_lst, patient_lst, 'unnorm')
 
     # Normalize feature matrix. TODO: tune type of normalization. Before or
@@ -206,11 +215,11 @@ def main():
             args.where_norm)
     else:
         suffix = args.norm_type
-        
-    if args.where_norm in ['after', 'both']:
+
+    if args.where_norm in ['after', 'both', None]:
         pros_feat_mat = normalize(pros_feat_mat, norm=args.norm_type, axis=0)
 
-    write_feature_matrix(label_dct, test_feat_mat, pros_feat_mat, test_feat_lst,
+    write_feature_matrix(test_feat_mat, pros_feat_mat, test_feat_lst,
         pros_feat_lst, patient_lst, suffix)
 
     # print_sparsity_info(test_feat_mat)

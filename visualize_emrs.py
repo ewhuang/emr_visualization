@@ -4,8 +4,12 @@ import argparse
 import matplotlib
 import numpy as np
 import os
+from process_loni_parkinsons import get_updrs_dct
 from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.manifold import TSNE
+from sklearn.metrics import accuracy_score
+from sklearn.cross_validation import train_test_split, cross_val_score
+from sklearn.neighbors import KNeighborsClassifier
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -15,40 +19,41 @@ import pylab
 ### Visualizes EMR data via dimensionality reduction.
 
 def generate_directories():
-    global results_folder
-    results_folder = './results'
-    if not os.path.exists(results_folder):
-        os.makedirs(results_folder)
-    results_folder = './results/emr_points'
-    if not os.path.exists(results_folder):
-        os.makedirs(results_folder)
+    for results_folder in ('./results', './results/emr_points',
+        './results/baseline_accuracy'):
+        if not os.path.exists(results_folder):
+            os.makedirs(results_folder)
 
 def read_feature_matrix(suffix):
     '''
     Reads the feature matrix of the patient data. Takes an optional argument in
     the form number of dimensions.
     '''
-    feature_matrix, updrs_lst, master_feature_list = [], [], []
+    # feature_matrix, label_lst, master_feature_list = [], [], []
+    feature_matrix, patient_lst, master_feature_list = [], [], []
 
-    fname = './data/feature_matrices/feature_matrix_%s.txt' % suffix
+    fname = './data/feature_matrices/feature_matrix_%s.tsv' % suffix
     f = open(fname, 'r')
     for i, line in enumerate(f):
         line = line.strip().split('\t')
-        feature_list = line[2:]
+        feature_list = line[1:]
         if i == 0:
             master_feature_list = feature_list[:]
             continue
         assert len(feature_list) == len(master_feature_list)
         feature_matrix += [map(float, feature_list)]
-        # TODO: SWEDD stuff won't be floats.
-        updrs_lst += [float(line[1])]
+        patient_lst += [line[0]]
+        # TODO: SWEDD/Control/PD won't be floats.
+        # label_lst += [float(line[1])]
+        # label_lst += [line[1]]
     f.close()
 
-    return np.array(feature_matrix), updrs_lst, master_feature_list
+    # return np.array(feature_matrix), label_lst, master_feature_list
+    return np.array(feature_matrix), patient_lst, master_feature_list
 
-def plot_histogram(updrs_lst):
+def plot_histogram(label_lst):
     bins = range(200)
-    matplotlib.pyplot.hist(updrs_lst, bins, alpha=0.25)
+    matplotlib.pyplot.hist(label_lst, bins, alpha=0.25)
 
     plt.show()
     pylab.savefig('./results/emr_points/updrs_histogram.png')
@@ -62,7 +67,87 @@ def parse_args():
     parser.add_argument('-w', '--where_norm', help='where to normalize: before or after (or both) ProSNet imputation')
     parser.add_argument('-p', '--n_pca_comp', help='number of PCA components')
     parser.add_argument('-t', '--tsne_init', help='t-SNE initialization method')
+    parser.add_argument('-r', '--l_rate', help='learning rate of t-SNE')
+    parser.add_argument('-k', '--knn', help='number of nearest neighbors')
     return parser.parse_args()
+
+def knn_predict(args, fname, X, y):
+    '''
+    Gets the classification accuracy on a 3-fold CV with a KNN classifier.
+    Writes out the score to file if this is a baseline run.
+    '''
+    # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1,
+    #     random_state=9305)
+    # TODO: make n_neighbors be a command line option.
+    knn = KNeighborsClassifier(n_neighbors=int(args.knn))
+    # knn.fit(X_train, y_train)
+    # pred = knn.predict(X_test)
+
+    # score = accuracy_score(y_test, pred)
+    # print score
+
+    score = cross_val_score(knn, X, y, cv=10, scoring='accuracy').mean()
+
+    # Write the score out to file if this is a baseline run.
+    if args.num_dim == None:
+        out = open('./results/baseline_accuracy/%s.txt' % fname, 'w')
+        out.write('%g' % score)
+        out.close()
+    return score
+
+def label_visualization(args, feature_matrix, label_lst, suffix, test_name):
+    # PCA for ProSNet-enriched matrices.
+    # if args.num_dim != None:
+    # TODO: everyone running Truncated.
+    if True:
+        print 'running PCA...'
+        dim_reduc = PCA(n_components=int(args.n_pca_comp))
+    else:
+        print 'running truncated SVD...'
+        # Truncated SVD on the feature matrix for non-ProSNet. TODO: ncomponents = 50?
+        dim_reduc = TruncatedSVD(n_components=int(args.n_pca_comp), n_iter=10,
+            random_state=9305)
+    feature_matrix = dim_reduc.fit_transform(feature_matrix)
+
+    tsne = TSNE(n_components=2, init=args.tsne_init, random_state=9305,
+        learning_rate=int(args.l_rate))
+    feature_matrix = tsne.fit_transform(feature_matrix)
+
+    # Predict the accuracy of the visualization.
+    fname = '%s_%s_%s_%s_%s_%s' % (suffix, args.n_pca_comp, args.tsne_init,
+        test_name, args.l_rate, args.knn)
+    accuracy = knn_predict(args, fname, feature_matrix, label_lst)
+    print accuracy
+
+    # Always plot baseline plots.
+    if args.num_dim == None:
+        plot_embeddings(feature_matrix, label_lst, fname)
+    # Plot a ProSNet plot if its accuracy is better than its corresponding baseline.
+    else:
+        baseline_score = get_baseline_accuracy(args, test_name)
+        if accuracy > baseline_score:
+            plot_embeddings(feature_matrix, label_lst, fname)
+
+def get_baseline_accuracy(args, test_name):
+    '''
+    Get the classification accuracy of the baseline method.
+    '''
+    fname = '%s_%s_%s_%s_%s_%s' % (args.norm_type, args.n_pca_comp,
+        args.tsne_init, test_name, args.l_rate, args.knn)
+    f = open('./results/baseline_accuracy/%s.txt' % fname, 'r')
+    score = float(f.readline())
+    f.close()
+    return score
+
+def plot_embeddings(feature_matrix, label_lst, fname):
+    x_points = [point[0] for point in feature_matrix]
+    y_points = [point[1] for point in feature_matrix]
+    # Plot resulting feature matrix.
+    plt.scatter(x=x_points, y=y_points, c=label_lst, s=20, alpha=0.5)
+    plt.show()
+
+    pylab.savefig('./results/emr_points/%s.png' % fname)
+    plt.close()
 
 def main():
     args = parse_args()
@@ -74,41 +159,66 @@ def main():
 
     generate_directories()
 
-    feature_matrix, updrs_lst, feature_list = read_feature_matrix(suffix)
+    # feature_matrix, label_lst, feature_list = read_feature_matrix(suffix)
+    feature_matrix, patient_lst, feature_list = read_feature_matrix(suffix)
 
-    # TODO: currently not plotting histogram.
-    # plot_histogram(updrs_lst)
+    label_dct, score_names = get_updrs_dct()
+    assert set(label_dct.keys()) == set(patient_lst)
 
-    # TODO: converting arbitrary intervals of UPDRS scores to colors.
-    for i, e in enumerate(updrs_lst):
-        if e < 50:
-            updrs_lst[i] = 'black'
+    # Get the label list from the label dictionary.
+    # 1. Sum of UPDRS scores.
+    label_lst = []
+    for patno in patient_lst:
+        score = sum(label_dct[patno].values())
+        label_lst += [score]
+    for i, e in enumerate(label_lst):
+        if e < 45:
+            label_lst[i] = 'black'
         elif e < 80:
-            updrs_lst[i] = 'blue'
+            label_lst[i] = 'blue'
         else:
-            updrs_lst[i] = 'red'
+            label_lst[i] = 'red'
+    label_visualization(args, feature_matrix, label_lst, suffix, 'sum')
 
-    # PCA for ProSNet-enriched matrices.
-    if args.num_dim != None:
-        dim_reduc = PCA(n_components=int(args.n_pca_comp))
-    else:
-        # Truncated SVD on the feature matrix for non-ProSNet. TODO: ncomponents = 50?
-        dim_reduc = TruncatedSVD(n_components=50, n_iter=10, random_state=9305)
-    feature_matrix = dim_reduc.fit_transform(feature_matrix)
+    # 2. Individual UPDRS scores. # TODO: Only doing NP2WALK.
+    for score_name in score_names:
+    # for score_name in ['NP2WALK']:
+        label_lst = []
+        for patno in patient_lst:
+            if score_name not in label_dct[patno]:
+                score = 0
+            else:
+                score = label_dct[patno][score_name]
+            label_lst += [score]
+        # Convert labels to colors for each UPDRS test.
+        for i, e in enumerate(label_lst):
+            if e < 1:
+                label_lst[i] = 'black'
+            elif e < 3:
+                label_lst[i] = 'blue'
+            else:
+                label_lst[i] = 'red'
+        label_visualization(args, feature_matrix, label_lst, suffix, score_name)
 
-    # TODO: Use different initiation techniques.
-    tsne = TSNE(n_components=2, init=args.tsne_init, random_state=9305)
-    feature_matrix = tsne.fit_transform(feature_matrix)
+    # # TODO: currently not plotting histogram.
+    # plot_histogram(label_lst)
 
-    x_points = [point[0] for point in feature_matrix]
-    y_points = [point[1] for point in feature_matrix]
-    # Plot resulting feature matrix.
-    plt.scatter(x=x_points, y=y_points, c=updrs_lst, s=20)
-    plt.show()
+    # for i, e in enumerate(label_lst):
+    #     if e == 'PD':
+    #         label_lst[i] = 'red'
+    #     elif e == 'SWEDD':
+    #         label_lst[i] = 'blue'
+    #     else:
+    #         assert e == 'Control'
+    #         label_lst[i] = 'black'
 
-    pylab.savefig('%s/%s_%s_%s.png' % (results_folder, suffix, args.n_pca_comp,
-        args.tsne_init))
-    plt.close()
+    # for i, e in enumerate(label_lst):
+    #     if e < 25:
+    #         label_lst[i] = 'red'
+    #     elif e < 75:
+    #         label_lst[i] = 'blue'
+    #     else:
+    #         label_lst[i] = 'blue'
 
 if __name__ == '__main__':
     main()

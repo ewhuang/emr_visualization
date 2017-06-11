@@ -11,43 +11,55 @@ import sys
 # Records the set of nodes already written to file. Also unique number of edges.
 global_node_set, global_edge_set, num_edge_types = set([]), set([]), 0
 
-def get_entrez_to_hgnc_dct():
-    '''
-    Gets mappings from HGNC ID's to Entrez ID's.
-    '''
-    entrez_to_hgnc_dct = {}
-    f = open('./data/hgnc_to_entrez.txt', 'r')
-    for i, line in enumerate(f):
-        if i == 0:
-            continue
-        line = line.strip().split('\t')
-        if len(line) != 2:
-            continue
-        hgnc_id, entrez_id = line
-        assert entrez_id not in entrez_to_hgnc_dct
-        entrez_to_hgnc_dct[entrez_id] = hgnc_id
-    f.close()
-    return entrez_to_hgnc_dct
+# def get_entrez_to_hgnc_dct():
+#     '''
+#     Gets mappings from HGNC ID's to Entrez ID's.
+#     '''
+#     entrez_to_hgnc_dct = {}
+#     f = open('./data/hgnc_to_entrez.txt', 'r')
+#     for i, line in enumerate(f):
+#         if i == 0:
+#             continue
+#         line = line.strip().split('\t')
+#         if len(line) != 2:
+#             continue
+#         hgnc_id, entrez_id = line
+#         assert entrez_id not in entrez_to_hgnc_dct
+#         entrez_to_hgnc_dct[entrez_id] = hgnc_id
+#     f.close()
+#     return entrez_to_hgnc_dct
+
+# def get_ppi_edge_set():
+#     '''
+#     Get the protein-protein edge set from a PPI network.
+#     '''
+#     entrez_to_hgnc_dct = get_entrez_to_hgnc_dct()
+
+#     ppi_edge_set = set([])
+#     # Gene ID's in this PPI network are Entrez ID's.
+#     f = open('./data/HumanNet.v1.benchmark.txt', 'r')
+#     for line in f:
+#         line = line.split()
+#         assert len(line) == 2
+#         node_a, node_b = line
+#         # Skip if no HGNC analogues.
+#         if node_a not in entrez_to_hgnc_dct or node_b not in entrez_to_hgnc_dct:
+#             continue
+#         # Translate the Entrez ID to HGNC protein.
+#         ppi_edge_set.add((entrez_to_hgnc_dct[node_a],
+#             entrez_to_hgnc_dct[node_b]))
+#     f.close()
+#     return ppi_edge_set
 
 def get_ppi_edge_set():
     '''
     Get the protein-protein edge set from a PPI network.
     '''
-    entrez_to_hgnc_dct = get_entrez_to_hgnc_dct()
-
     ppi_edge_set = set([])
-    # Gene ID's in this PPI network are Entrez ID's.
-    f = open('./data/HumanNet.v1.benchmark.txt', 'r')
+    f = open('./data/InBio-Map_Symbol.sif', 'r')
     for line in f:
-        line = line.split()
-        assert len(line) == 2
-        node_a, node_b = line
-        # Skip if no HGNC analogues.
-        if node_a not in entrez_to_hgnc_dct or node_b not in entrez_to_hgnc_dct:
-            continue
-        # Translate the Entrez ID to HGNC protein.
-        ppi_edge_set.add((entrez_to_hgnc_dct[node_a],
-            entrez_to_hgnc_dct[node_b]))
+        node_a, node_b = line.split()
+        ppi_edge_set.add((node_a, node_b))
     f.close()
     return ppi_edge_set
 
@@ -92,8 +104,9 @@ def write_files(node_out, edge_out, edge_set, node_type_a, node_type_b):
             edge_out.write('%s\t' % node)
         # Edge weights are all = 1. Map the edge type to a letter.
         edge_label = string.ascii_lowercase[num_edge_types]
-        # edge_label = num_edge_types + 1
         edge_out.write('1\t%s\n' % edge_label)
+        # Write the edge backwards, to make it undirected.
+        edge_out.write('%s\t%s\t1\t%s\n' % (edge[1], edge[0], edge_label))
     num_edge_types += 1
 
 def get_coocc_edge_set(patient_dct_a, patient_dct_b):
@@ -114,12 +127,12 @@ def get_coocc_edge_set(patient_dct_a, patient_dct_b):
                     coocc_edge_set.add((node_a, node_b))
     return coocc_edge_set
 
-def run_prosnet():
+def run_prosnet(num_dim):
     os.chdir('./prosnet/model')
     network_folder = '../../data/prosnet_data'
     command = ('./embed -node "%s/prosnet_node_list.txt" -link "%s/prosnet_'
         'edge_list.txt" -binary 0 -size %s -negative 5 -samples 1 '
-        '-iters 500 -threads 12 -model 2 -depth 10 -restart 0.8 '
+        '-iters 501 -threads 12 -model 2 -depth 10 -restart 0.8 '
         '-edge_type_num %d -rwr_ppi 1 -rwr_seq 1 -train_mode 2' % (
             network_folder, network_folder, num_dim, num_edge_types))
     print command
@@ -167,7 +180,7 @@ def get_spreadsheet_results():
     f_tuples += [('d', drug_dct)]
 
     # Gene mutations.
-    mutation_dct = get_attributes([read_mutation_file()])
+    mutation_dct = get_attributes([read_snp_mutations()])
     f_tuples += [('g', mutation_dct)]
 
     return f_tuples
@@ -176,7 +189,6 @@ def main():
     if len(sys.argv) != 2:
         print 'Usage:python %s num_dim' % sys.argv[0]
         exit()
-    global num_dim
     num_dim = sys.argv[1]
     assert num_dim.isdigit()
 
@@ -213,7 +225,7 @@ def main():
     node_out.close()
 
     # Run prosnet. Outputs the low-dimensional vectors into files.
-    run_prosnet()
+    run_prosnet(num_dim)
 
 if __name__ == '__main__':
     main()
