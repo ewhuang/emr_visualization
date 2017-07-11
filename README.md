@@ -18,9 +18,11 @@
     PD patients and healthy patients.
 
     ```bash
-    python snp_fisher.py [-h] [-t SNP_TYPE]
+    python snp_fisher.py [-h] -t {wgs,wes} -c {hard,ppmi} [-b {ignore,use}]
     ```
-    SNP_TYPE in ['wgs', 'wes']
+    Necessary runs:
+    python snp_fisher.py -t wes -c hard -b ignore
+    python snp_fisher.py -t wes -c ppmi
 
 ## Running ProSNet.
 
@@ -45,6 +47,7 @@
     ```bash
     python visualize_emrs.py [-h] [-n NORM_TYPE] [-d NUM_DIM] [-s SIM_THRESH]
                                 [-w WHERE_NORM] [-p N_PCA_COMP] [-t TSNE_INIT]
+                                [-r L_RATE] [-k KNN]
     ```
     -n, -p, -t required.
 

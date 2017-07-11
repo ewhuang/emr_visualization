@@ -76,6 +76,37 @@ def get_stitch_edge_set(fname):
     f.close()
     return edge_set
 
+def read_snp_fisher_file(fname):
+    '''
+    Given a Fisher's test file on finding significant SNPs, get the list of
+    SNPs.
+    '''
+    snp_lst = []
+    f = open(fname, 'r')
+    f.readline()
+    for line in f:
+        line = line.strip().split('\t')
+        snp_lst += [line[0]]
+    f.close
+    return snp_lst
+
+def read_mutation_file(fname, snp_patient_dct, snp_lst):
+    '''
+    Reads the mutation file, given a filename. Updates the given dictionary in
+    place. snp_patient_dct contains the patients affected by the SNP key.
+    '''
+    f = open(fname, 'r')
+    f.readline() # Skip header line.
+    for line in f:
+        patno, func, gene, exonic_func, snp = line.strip().split('\t')[1:]
+        if snp not in snp_lst or 'nonsynonymous' not in exonic_func or func != 'exonic':
+            continue
+        # Update the patient dictionary.
+        if patno not in snp_patient_dct:
+            snp_patient_dct[patno] = set([])
+        snp_patient_dct[patno].add(snp)
+    f.close()
+
 def write_files(node_out, edge_out, edge_set, node_type_a, node_type_b):
     '''
     Write the edges out to file. edge_label is just a letter to differentiate
@@ -132,7 +163,7 @@ def run_prosnet(num_dim):
     network_folder = '../../data/prosnet_data'
     command = ('./embed -node "%s/prosnet_node_list.txt" -link "%s/prosnet_'
         'edge_list.txt" -binary 0 -size %s -negative 5 -samples 1 '
-        '-iters 501 -threads 12 -model 2 -depth 10 -restart 0.8 '
+        '-iters 1001 -threads 12 -model 2 -depth 10 -restart 0.8 '
         '-edge_type_num %d -rwr_ppi 1 -rwr_seq 1 -train_mode 2' % (
             network_folder, network_folder, num_dim, num_edge_types))
     print command
@@ -153,6 +184,33 @@ def get_attributes(patient_dct_lst):
                 new_dct[patno] = []
             new_dct[patno] += [pair[0] for pair in tuple_lst]
     return new_dct
+
+# def read_snp_mutations():
+#     '''
+#     Read the SNP mutations that are highly correlated with symptoms.
+#     '''
+#     snp_edge_set = set([])
+#     f = open('./data/ppmi/snp_files/snp_symptom_enrichments.txt', 'r')
+#     for line in f:
+#         line = line.split()
+#         snp, symptom = line[0], line[1]
+#         snp_edge_set.add((snp, symptom))
+#     f.close()
+#     return snp_edge_set
+
+def get_mutation_dct():
+    # First, get the SNPs deemed to be significantly enriched in PD patients.
+    snp_lst = []
+    for fname in ('snp_fisher_test_wes_ppmi', 'snp_fisher_test_wes_hard_ignore'):
+        snp_lst += read_snp_fisher_file('./data/ppmi/snp_files/%s.tsv' % fname)
+        # break # TODO
+    # Next, for each SNP, get the patients that have the SNP.
+    snp_patient_dct = {}
+    wes_folder = './data/annovar_annotate_output_wes_patient_info'
+    for fname in os.listdir(wes_folder):
+        read_mutation_file('%s/%s' % (wes_folder, fname), snp_patient_dct, snp_lst)
+        # break # TODO
+    return snp_patient_dct
 
 def get_spreadsheet_results():
     '''
@@ -180,7 +238,12 @@ def get_spreadsheet_results():
     f_tuples += [('d', drug_dct)]
 
     # Gene mutations.
-    mutation_dct = get_attributes([read_snp_mutations()])
+    # TODO: where is the function?
+    # mutation_dct = get_attributes([read_snp_mutations()])
+    print 'reading mutation_dct...'
+    mutation_dct = get_mutation_dct()
+    print mutation_dct
+    exit()
     f_tuples += [('g', mutation_dct)]
 
     return f_tuples
@@ -208,6 +271,7 @@ def main():
     f_tuples = get_spreadsheet_results()
     # Loop through every pair of node types.
     for i in range(len(f_tuples)):
+        print node_type_a
         node_type_a, patient_dct_a = f_tuples[i]
         for j in range(i, len(f_tuples)):
             node_type_b, patient_dct_b = f_tuples[j]
@@ -225,6 +289,7 @@ def main():
     node_out.close()
 
     # Run prosnet. Outputs the low-dimensional vectors into files.
+    exit()
     run_prosnet(num_dim)
 
 if __name__ == '__main__':

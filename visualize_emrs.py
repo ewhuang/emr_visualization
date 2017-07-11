@@ -8,7 +8,7 @@ from process_loni_parkinsons import get_updrs_dct
 from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.manifold import TSNE
 from sklearn.metrics import accuracy_score
-from sklearn.cross_validation import train_test_split, cross_val_score
+from sklearn.model_selection import cross_val_score
 from sklearn.neighbors import KNeighborsClassifier
 
 matplotlib.use('Agg')
@@ -20,7 +20,7 @@ import pylab
 
 def generate_directories():
     for results_folder in ('./results', './results/emr_points',
-        './results/baseline_accuracy'):
+        './results/baseline_accuracy', './results/prosnet_accuracy'):
         if not os.path.exists(results_folder):
             os.makedirs(results_folder)
 
@@ -30,18 +30,15 @@ def read_feature_matrix(suffix):
     the form number of dimensions.
     '''
     # feature_matrix, label_lst, master_feature_list = [], [], []
-    feature_matrix, patient_lst, master_feature_list = [], [], []
+    feature_matrix, patient_lst = [], []
 
     fname = './data/feature_matrices/feature_matrix_%s.tsv' % suffix
     f = open(fname, 'r')
-    for i, line in enumerate(f):
+    header = f.readline().strip().split('\t')
+    for line in f:
         line = line.strip().split('\t')
-        feature_list = line[1:]
-        if i == 0:
-            master_feature_list = feature_list[:]
-            continue
-        assert len(feature_list) == len(master_feature_list)
-        feature_matrix += [map(float, feature_list)]
+        assert len(line) == len(header)
+        feature_matrix += [map(float, line[1:])]
         patient_lst += [line[0]]
         # TODO: SWEDD/Control/PD won't be floats.
         # label_lst += [float(line[1])]
@@ -49,15 +46,15 @@ def read_feature_matrix(suffix):
     f.close()
 
     # return np.array(feature_matrix), label_lst, master_feature_list
-    return np.array(feature_matrix), patient_lst, master_feature_list
+    return np.array(feature_matrix), patient_lst
 
-def plot_histogram(label_lst):
-    bins = range(200)
-    matplotlib.pyplot.hist(label_lst, bins, alpha=0.25)
+# def plot_histogram(label_lst):
+#     bins = range(200)
+#     matplotlib.pyplot.hist(label_lst, bins, alpha=0.25)
 
-    plt.show()
-    pylab.savefig('./results/emr_points/updrs_histogram.png')
-    plt.close()
+#     plt.show()
+#     pylab.savefig('./results/emr_points/updrs_histogram.png')
+#     plt.close()
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -68,7 +65,7 @@ def parse_args():
     parser.add_argument('-p', '--n_pca_comp', help='number of PCA components')
     parser.add_argument('-t', '--tsne_init', help='t-SNE initialization method')
     parser.add_argument('-r', '--l_rate', help='learning rate of t-SNE')
-    parser.add_argument('-k', '--knn', help='number of nearest neighbors')
+    # parser.add_argument('-k', '--knn', help='number of nearest neighbors')
     return parser.parse_args()
 
 def knn_predict(args, fname, X, y):
@@ -79,20 +76,23 @@ def knn_predict(args, fname, X, y):
     # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1,
     #     random_state=9305)
     # TODO: make n_neighbors be a command line option.
-    knn = KNeighborsClassifier(n_neighbors=int(args.knn))
+    knn = KNeighborsClassifier(n_neighbors=10)
     # knn.fit(X_train, y_train)
     # pred = knn.predict(X_test)
 
     # score = accuracy_score(y_test, pred)
     # print score
-
+    # TODO: 10-fold CV.
     score = cross_val_score(knn, X, y, cv=10, scoring='accuracy').mean()
 
     # Write the score out to file if this is a baseline run.
     if args.num_dim == None:
-        out = open('./results/baseline_accuracy/%s.txt' % fname, 'w')
-        out.write('%g' % score)
-        out.close()
+        folder = './results/baseline_accuracy'
+    else:
+        folder = './results/prosnet_accuracy'
+    out = open('%s/%s.txt' % (folder, fname), 'w')
+    out.write('%g' % score)
+    out.close()
     return score
 
 def label_visualization(args, feature_matrix, label_lst, suffix, test_name):
@@ -100,7 +100,7 @@ def label_visualization(args, feature_matrix, label_lst, suffix, test_name):
     # if args.num_dim != None:
     # TODO: everyone running Truncated.
     if True:
-        print 'running PCA...'
+        # print 'running PCA...'
         dim_reduc = PCA(n_components=int(args.n_pca_comp))
     else:
         print 'running truncated SVD...'
@@ -114,53 +114,57 @@ def label_visualization(args, feature_matrix, label_lst, suffix, test_name):
     feature_matrix = tsne.fit_transform(feature_matrix)
 
     # Predict the accuracy of the visualization.
-    fname = '%s_%s_%s_%s_%s_%s' % (suffix, args.n_pca_comp, args.tsne_init,
-        test_name, args.l_rate, args.knn)
+    fname = '%s_%s_%s_%s_%s' % (suffix, args.n_pca_comp, args.tsne_init,
+        test_name, args.l_rate)
     accuracy = knn_predict(args, fname, feature_matrix, label_lst)
     print accuracy
 
     # Always plot baseline plots.
-    if args.num_dim == None:
-        plot_embeddings(feature_matrix, label_lst, fname)
+    if args.num_dim == None: # Title for baseline is just the accuracy score.
+        title = 'baseline accuracy (%g)' % accuracy
+        plot_embeddings(feature_matrix, label_lst, fname, title)
     # Plot a ProSNet plot if its accuracy is better than its corresponding baseline.
     else:
         baseline_score = get_baseline_accuracy(args, test_name)
         if accuracy > baseline_score:
-            plot_embeddings(feature_matrix, label_lst, fname)
+            title = '%g vs. baseline (%g)' % (accuracy, baseline_score)
+            plot_embeddings(feature_matrix, label_lst, fname, title)
 
 def get_baseline_accuracy(args, test_name):
     '''
     Get the classification accuracy of the baseline method.
     '''
-    fname = '%s_%s_%s_%s_%s_%s' % (args.norm_type, args.n_pca_comp,
-        args.tsne_init, test_name, args.l_rate, args.knn)
+    fname = '%s_%s_%s_%s_%s' % (args.norm_type, args.n_pca_comp,
+        args.tsne_init, test_name, args.l_rate)
     f = open('./results/baseline_accuracy/%s.txt' % fname, 'r')
     score = float(f.readline())
     f.close()
     return score
 
-def plot_embeddings(feature_matrix, label_lst, fname):
+def plot_embeddings(feature_matrix, label_lst, fname, title):
     x_points = [point[0] for point in feature_matrix]
     y_points = [point[1] for point in feature_matrix]
     # Plot resulting feature matrix.
     plt.scatter(x=x_points, y=y_points, c=label_lst, s=20, alpha=0.5)
+    plt.title(title)
     plt.show()
 
     pylab.savefig('./results/emr_points/%s.png' % fname)
     plt.close()
 
 def main():
+    generate_directories()
     args = parse_args()
-    suffix = args.norm_type
-    assert suffix in ['l1', 'l2', 'max']
 
+    # Process the filename for each run.
+    suffix = args.norm_type # Baseline only contains normalization method.
+    assert suffix in ['l1', 'l2', 'max']
     if args.num_dim != None:
+        assert args.num_dim.isdigit()
         suffix += '_%s_%s_%s' % (args.num_dim, args.sim_thresh, args.where_norm)
 
-    generate_directories()
-
     # feature_matrix, label_lst, feature_list = read_feature_matrix(suffix)
-    feature_matrix, patient_lst, feature_list = read_feature_matrix(suffix)
+    feature_matrix, patient_lst = read_feature_matrix(suffix)
 
     label_dct, score_names = get_updrs_dct()
     assert set(label_dct.keys()) == set(patient_lst)
@@ -172,33 +176,34 @@ def main():
         score = sum(label_dct[patno].values())
         label_lst += [score]
     for i, e in enumerate(label_lst):
+        # Convert UPDRS scores to colors based on their range.
         if e < 45:
-            label_lst[i] = 'black'
+            label_lst[i] = 'white'
         elif e < 80:
-            label_lst[i] = 'blue'
+            label_lst[i] = 'yellow'
         else:
             label_lst[i] = 'red'
     label_visualization(args, feature_matrix, label_lst, suffix, 'sum')
 
-    # 2. Individual UPDRS scores. # TODO: Only doing NP2WALK.
-    for score_name in score_names:
-    # for score_name in ['NP2WALK']:
-        label_lst = []
-        for patno in patient_lst:
-            if score_name not in label_dct[patno]:
-                score = 0
-            else:
-                score = label_dct[patno][score_name]
-            label_lst += [score]
-        # Convert labels to colors for each UPDRS test.
-        for i, e in enumerate(label_lst):
-            if e < 1:
-                label_lst[i] = 'black'
-            elif e < 3:
-                label_lst[i] = 'blue'
-            else:
-                label_lst[i] = 'red'
-        label_visualization(args, feature_matrix, label_lst, suffix, score_name)
+    # # 2. Individual UPDRS scores. # TODO: Only doing NP2WALK.
+    # for score_name in score_names:
+    # # for score_name in ['NP4OFF']:
+    #     label_lst = []
+    #     for patno in patient_lst:
+    #         if score_name not in label_dct[patno]:
+    #             score = 0
+    #         else:
+    #             score = label_dct[patno][score_name]
+    #         label_lst += [score]
+    #     # Convert labels to colors for each UPDRS test.
+    #     for i, e in enumerate(label_lst):
+    #         if e < 1:
+    #             label_lst[i] = 'black'
+    #         elif e < 3:
+    #             label_lst[i] = 'blue'
+    #         else:
+    #             label_lst[i] = 'red'
+    #     label_visualization(args, feature_matrix, label_lst, suffix, score_name)
 
     # # TODO: currently not plotting histogram.
     # plot_histogram(label_lst)
