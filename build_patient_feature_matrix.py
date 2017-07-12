@@ -51,7 +51,7 @@ def impute_missing_data(feature_matrix, master_feature_lst, num_dim, sim_thresh)
         '''
         vector_dct = {}
         # 450 is the last iteration number.
-        f = open('./data/prosnet_data/embed_%s_500.txt' % num_dim, 'r')
+        f = open('./data/prosnet_data/embed_%s_1000.txt' % num_dim, 'r')
         f.readline()
         for line in f:
             line = line.split()
@@ -130,8 +130,8 @@ def get_prosnet_feat_tuples():
     '''
     code_dct = read_code_file()
     # Make sure SNP mutations comes before biospecimen, since they share feature 'APP'.
-    return (read_snp_mutations(), read_test_analysis('biospecimen'),
-        read_test_analysis('concom_medications'),
+    # return (read_snp_mutations(), read_test_analysis('biospecimen'),
+    return (read_test_analysis('biospecimen'), read_test_analysis('concom_medications'),
         read_clinical_diagnosis(code_dct), read_cognitive_categorizations(),
         read_medical_conditions(), read_binary_tests('neuro'),
         read_binary_tests('pd_features'), read_binary_tests('rem_disorder'),
@@ -158,15 +158,17 @@ def create_dct_lst(feat_tuples):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--norm_type', help='normalization method: [l1, l2, max]')
-    parser.add_argument('-d', '--num_dim', help='number of ProSNet dimensions')
-    parser.add_argument('-s', '--sim_thresh', help='threshold for cosine similarity between ProSNet vectors')
-    parser.add_argument('-w', '--where_norm', help='where to normalize: before or after (or both) ProSNet imputation')
-    parser.add_argument('-l', '--label_type', help='Use the patients that have this label')
+    parser.add_argument('-n', '--norm_type', help='Normalization method.',
+        required=True, choices=['max', 'l1', 'l2'])
+    parser.add_argument('-d', '--num_dim', help='Number of ProSNet dimensions',
+        type=int)
+    parser.add_argument('-s', '--sim_thresh', type=float,
+        help='Threshold for cosine similarity between ProSNet vectors')
+    parser.add_argument('-w', '--where_norm', choices=['before', 'after', 'both'],
+        help='Where to normalize with respect to ProSNet imputation.')
+    parser.add_argument('-l', '--label_type', choices=['updrs', 'status', 'tau'],
+        help='Use the patients that have this label.')
     args = parser.parse_args()
-    assert args.norm_type in ['max', 'l1', 'l2']
-    assert args.where_norm in ['before', 'after', 'both', None]
-    assert args.label_type in ['updrs', 'status', 'tau']
     return args
 
 def main():

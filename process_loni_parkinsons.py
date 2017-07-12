@@ -580,56 +580,6 @@ def read_pd_surgery():
 
     return pd_surgery_dct, feature_set
 
-# def read_snp_fisher():
-#     '''
-#     Gets the SNPs deemed interesting by Fisher's test.
-#     '''
-#     good_snp_set = set([])
-#     # TODO: Different types of SNP databases.
-#     f = open('./data/ppmi/snp_fisher_test_wgs.tsv', 'r')
-#     f.readline()
-#     for line in f:
-#         line = line.split('\t')
-#         snp, p_value = line[0], float(line[5])
-#         assert 'rs' in snp
-#         if p_value < 0.01:
-#             good_snp_set.add(snp)
-#     f.close()
-#     return good_snp_set
-
-# def read_mutation_file(good_snp_set, mutation_dct, feature_set, fname):
-#     '''
-#     Reads the PPMI mutation file, and records the genes with mutations for each
-#     patient. No header line.
-#     '''
-#     assert fname in ['indels', 'mutation']
-#     f = open('./data/ppmi/PPMI_%s.txt' % fname, 'r')
-#     for line in f:
-#         patno, mutated_gene_lst, att_1, exonic, snp = line.strip().split('\t')
-#         if snp not in good_snp_set:
-#             continue
-#         # Add the mutation tag line to the gene.
-#         if patno not in mutation_dct:
-#             mutation_dct[patno] = set([])
-#         mutated_gene_lst = mutated_gene_lst.split(',')
-#         for mutated_gene in mutated_gene_lst:
-#             mutation_dct[patno].add((mutated_gene, 1))
-#             feature_set.add(mutated_gene)
-#     f.close()
-
-# def read_snp_mutations():
-#     '''
-#     Returns the dictionary of SNP mutations for each patient.
-#     '''
-#     good_snp_set = read_snp_fisher()
-
-#     mutation_dct, feature_set = {}, set([])
-#     # f = open('./data/PPMI_mutation.txt', 'r')
-#     # f = open('./data/PPMI_indels.txt', 'r')
-#     read_mutation_file(good_snp_set, mutation_dct, feature_set, 'indels')
-#     read_mutation_file(good_snp_set, mutation_dct, feature_set, 'mutation')
-#     return mutation_dct, feature_set
-
 def read_patient_status():
     '''
     Reads the patient status for each patient number. Can be used as a label.
@@ -684,7 +634,6 @@ def main():
     demographics_dct = read_demographics()[0]
     pd_surgery_dct = read_pd_surgery()[0]
     pd_medication_dct = read_binary_tests('medication')[0]
-    # mutation_dct = read_snp_mutations()[0]
 
     # This block not to be used in ProSNet network.
     line_orientation_dct = read_test_score('benton')[0]
@@ -845,12 +794,6 @@ def main():
     assert pd_medication_dct['40595'] == [('ONLDOPA', 1)]
     assert pd_medication_dct['41400'] == [('ONLDOPA', 1), ('ONDOPAG', 1)]
     assert pd_medication_dct['41288'] == [('ONDOPAG', 1)]
-
-    # # Test the PPMI mutation dictionary.
-    # assert ('ANXA8L1', 1) in mutation_dct['4080']
-    # assert ('CTSLP2', 1) in mutation_dct['4080']
-    # assert ('VAPB', 1) in mutation_dct['3633']
-    # assert ('KIAA1033', 1) in mutation_dct['3452']
 
     print 'Finished tests!'
 

@@ -1,5 +1,6 @@
 ### Author: Edward Huang
 
+import argparse
 import json
 import os
 from process_loni_parkinsons import *
@@ -77,19 +78,17 @@ def get_stitch_edge_set(fname):
     f.close()
     return edge_set
 
-def read_snp_fisher_file(fname):
+def read_snp_fisher_file(fname, snp_set):
     '''
     Given a Fisher's test file on finding significant SNPs, get the list of
     SNPs.
     '''
-    snp_lst = []
     f = open(fname, 'r')
     f.readline()
     for line in f:
         line = line.strip().split('\t')
-        snp_lst += [line[0]]
+        snp_set.add(line[0])
     f.close
-    return snp_lst
 
 def write_files(node_out, edge_out, edge_set, node_type_a, node_type_b):
     '''
@@ -122,6 +121,7 @@ def write_files(node_out, edge_out, edge_set, node_type_a, node_type_b):
         edge_out.write('1\t%s\n' % edge_label)
         # Write the edge backwards, to make it undirected.
         edge_out.write('%s\t%s\t1\t%s\n' % (edge[1], edge[0], edge_label))
+        assert edge[1] != edge[0]
     num_edge_types += 1
 
 def get_coocc_edge_set(patient_dct_a, patient_dct_b):
@@ -142,14 +142,14 @@ def get_coocc_edge_set(patient_dct_a, patient_dct_b):
                     coocc_edge_set.add((node_a, node_b))
     return coocc_edge_set
 
-def run_prosnet(num_dim):
+def run_prosnet():
     os.chdir('./prosnet/model')
     network_folder = '../../data/prosnet_data'
     command = ('./embed -node "%s/prosnet_node_list.txt" -link "%s/prosnet_'
         'edge_list.txt" -binary 0 -size %s -negative 5 -samples 1 '
-        '-iters 1001 -threads 12 -model 2 -depth 10 -restart 0.8 '
+        '-iters 1001 -threads 24 -model 2 -depth 10 -restart 0.8 '
         '-edge_type_num %d -rwr_ppi 1 -rwr_seq 1 -train_mode 2' % (
-            network_folder, network_folder, num_dim, num_edge_types))
+            network_folder, network_folder, args.num_dim, num_edge_types))
     print command
     subprocess.call(command, shell=True)
 
@@ -169,34 +169,27 @@ def get_attributes(patient_dct_lst):
             new_dct[patno] += [pair[0] for pair in tuple_lst]
     return new_dct
 
-# def read_snp_mutations():
-#     '''
-#     Read the SNP mutations that are highly correlated with symptoms.
-#     '''
-#     snp_edge_set = set([])
-#     f = open('./data/ppmi/snp_files/snp_symptom_enrichments.txt', 'r')
-#     for line in f:
-#         line = line.split()
-#         snp, symptom = line[0], line[1]
-#         snp_edge_set.add((snp, symptom))
-#     f.close()
-#     return snp_edge_set
-
 def get_mutation_dct():
     # First, get the SNPs deemed to be significantly enriched in PD patients.
-    snp_lst = []
+    snp_set = set([])
     for fname in ('snp_fisher_test_wes_ppmi', 'snp_fisher_test_wes_hard_ignore'):
-        snp_lst += read_snp_fisher_file('./data/ppmi/snp_files/%s.tsv' % fname)
+        read_snp_fisher_file('./data/ppmi/snp_files/%s.tsv' % fname, snp_set)
         # break # TODO
+    print len(snp_set)
     # Next, for each SNP, get the patients that have the SNP.
     with open('./data/ppmi/snp_files/patno_snp_dct_wes.json', 'r') as fp:
         patno_snp_dct = json.load(fp)
     fp.close()
+
+    # Keep only the SNPs that were deemed significant.
+    for patno in patno_snp_dct:
+        patno_snp_dct[patno] = snp_set.intersection(patno_snp_dct[patno])
+
     # snp_patient_dct = {}
     # wes_folder = './data/annovar_annotate_output_wes_patient_info'
     # for fname in os.listdir(wes_folder):
     #     print fname
-    #     read_mutation_file('%s/%s' % (wes_folder, fname), snp_patient_dct, snp_lst)
+    #     read_mutation_file('%s/%s' % (wes_folder, fname), snp_patient_dct, snp_set)
         # break # TODO
     return patno_snp_dct
 
@@ -228,18 +221,33 @@ def get_spreadsheet_results():
     # Gene mutations.
     # TODO: where is the function?
     # mutation_dct = get_attributes([read_snp_mutations()])
-    print 'reading mutation_dct...'
     mutation_dct = get_mutation_dct()
     f_tuples += [('g', mutation_dct)]
 
     return f_tuples
 
+def get_symptom_snp_edge_set():
+    '''
+    Reads the symptom-SNP dictionary as computed by Fisher's exact test.
+    '''
+    snp_edge_set = set([])
+    f = open('./data/ppmi/snp_files/snp_symptom_enrichments.txt', 'r')
+    for line in f:
+        line = line.split()
+        snp, symptom = line[0], line[1]
+        snp_edge_set.add((snp, symptom))
+    f.close()
+    return snp_edge_set
+
+def parse_args():
+    global args
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-n', '--num_dim', type=int, required=True,
+        help='Number of ProSNet dimensions.')
+    args = parser.parse_args()
+
 def main():
-    if len(sys.argv) != 2:
-        print 'Usage:python %s num_dim' % sys.argv[0]
-        exit()
-    num_dim = sys.argv[1]
-    assert num_dim.isdigit()
+    parse_args()
 
     input_folder = './data/prosnet_data'
     if not os.path.exists(input_folder):
@@ -252,12 +260,10 @@ def main():
 
     protein_drug_edge_set = get_stitch_edge_set('stitch_protein_drug')
     write_files(node_out, edge_out, protein_drug_edge_set, 'p', 'd')
-    drug_drug_edge_set = get_stitch_edge_set('stitch_drug_drug')
 
     f_tuples = get_spreadsheet_results()
     # Loop through every pair of node types.
     for i in range(len(f_tuples)):
-        print node_type_a
         node_type_a, patient_dct_a = f_tuples[i]
         for j in range(i, len(f_tuples)):
             node_type_b, patient_dct_b = f_tuples[j]
@@ -265,8 +271,9 @@ def main():
             edge_set = get_coocc_edge_set(patient_dct_a, patient_dct_b)
 
             if node_type_a == 'd' and node_type_b == 'd':
-                # Add in the drug-drug edges from STITCH.
-                edge_set = edge_set.union(drug_drug_edge_set)
+                edge_set = edge_set.union(get_stitch_edge_set('stitch_drug_drug'))
+            elif node_type_a == 's' and node_type_b == 'g':
+                edge_set = edge_set.union(get_symptom_snp_edge_set())
 
             # Write the edges out to file.
             write_files(node_out, edge_out, edge_set, node_type_a, node_type_b)
@@ -275,8 +282,7 @@ def main():
     node_out.close()
 
     # Run prosnet. Outputs the low-dimensional vectors into files.
-    exit()
-    run_prosnet(num_dim)
+    run_prosnet()
 
 if __name__ == '__main__':
     main()
