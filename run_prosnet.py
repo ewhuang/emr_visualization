@@ -1,5 +1,6 @@
 ### Author: Edward Huang
 
+import json
 import os
 from process_loni_parkinsons import *
 import string
@@ -89,23 +90,6 @@ def read_snp_fisher_file(fname):
         snp_lst += [line[0]]
     f.close
     return snp_lst
-
-def read_mutation_file(fname, snp_patient_dct, snp_lst):
-    '''
-    Reads the mutation file, given a filename. Updates the given dictionary in
-    place. snp_patient_dct contains the patients affected by the SNP key.
-    '''
-    f = open(fname, 'r')
-    f.readline() # Skip header line.
-    for line in f:
-        patno, func, gene, exonic_func, snp = line.strip().split('\t')[1:]
-        if snp not in snp_lst or 'nonsynonymous' not in exonic_func or func != 'exonic':
-            continue
-        # Update the patient dictionary.
-        if patno not in snp_patient_dct:
-            snp_patient_dct[patno] = set([])
-        snp_patient_dct[patno].add(snp)
-    f.close()
 
 def write_files(node_out, edge_out, edge_set, node_type_a, node_type_b):
     '''
@@ -205,12 +189,16 @@ def get_mutation_dct():
         snp_lst += read_snp_fisher_file('./data/ppmi/snp_files/%s.tsv' % fname)
         # break # TODO
     # Next, for each SNP, get the patients that have the SNP.
-    snp_patient_dct = {}
-    wes_folder = './data/annovar_annotate_output_wes_patient_info'
-    for fname in os.listdir(wes_folder):
-        read_mutation_file('%s/%s' % (wes_folder, fname), snp_patient_dct, snp_lst)
+    with open('./data/ppmi/snp_files/patno_snp_dct_wes.json', 'r') as fp:
+        patno_snp_dct = json.load(fp)
+    fp.close()
+    # snp_patient_dct = {}
+    # wes_folder = './data/annovar_annotate_output_wes_patient_info'
+    # for fname in os.listdir(wes_folder):
+    #     print fname
+    #     read_mutation_file('%s/%s' % (wes_folder, fname), snp_patient_dct, snp_lst)
         # break # TODO
-    return snp_patient_dct
+    return patno_snp_dct
 
 def get_spreadsheet_results():
     '''
@@ -242,8 +230,6 @@ def get_spreadsheet_results():
     # mutation_dct = get_attributes([read_snp_mutations()])
     print 'reading mutation_dct...'
     mutation_dct = get_mutation_dct()
-    print mutation_dct
-    exit()
     f_tuples += [('g', mutation_dct)]
 
     return f_tuples

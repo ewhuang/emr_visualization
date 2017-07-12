@@ -52,7 +52,7 @@ def read_SNP_background_freq(fname):
     f.close()
     return snp_bkg_dct
 
-def read_mutation_file(snp_pd_count_dct, snp_ppmi_dct, fname):
+def read_mutation_file(snp_pd_count_dct, snp_ppmi_dct, patno_snp_dct, fname):
     '''
     Reads the mutation file, given a filename. Updates the given dictionaries
     in place. snp_pd_count_dct contains the number of PD patients given a SNP
@@ -70,6 +70,11 @@ def read_mutation_file(snp_pd_count_dct, snp_ppmi_dct, fname):
         if snp == '.' or func != 'exonic' or 'nonsynonymous' not in exonic_func:
             continue
         snp_ppmi_dct[snp] = (func, exonic_func, gene)
+
+        # Update the patient to SNP dictionary.
+        if patno not in patno_snp_dct:
+            patno_snp_dct[patno] = set([])
+        patno_snp_dct[patno].add(snp)
 
         # Only keep track of PD/HC patients with the SNP.
         if patno not in status_dct:
@@ -93,14 +98,15 @@ def write_snp_and_count_dct():
     the function and exonic information for each SNP. Both dictionaries are
     dumpd to JSON files.
     '''
-    snp_pd_count_dct, snp_ppmi_dct = {}, {}
+    # patno_snp_dct is not relevant to this analysis, but later used in run_prosnet.py
+    snp_pd_count_dct, snp_ppmi_dct, patno_snp_dct = {}, {}, {}
     if args.snp_type == 'wgs':
-        read_mutation_file(snp_pd_count_dct, snp_ppmi_dct, './data/ppmi/PPMI_indels.txt')
-        read_mutation_file(snp_pd_count_dct, snp_ppmi_dct, './data/ppmi/PPMI_mutation.txt')
+        read_mutation_file(snp_pd_count_dct, snp_ppmi_dct, patno_snp_dct, './data/ppmi/PPMI_indels.txt')
+        read_mutation_file(snp_pd_count_dct, snp_ppmi_dct, patno_snp_dct, './data/ppmi/PPMI_mutation.txt')
     elif args.snp_type == 'wes':
         wes_folder = './data/annovar_annotate_output_wes_patient_info'
         for fname in os.listdir(wes_folder):
-            read_mutation_file(snp_pd_count_dct, snp_ppmi_dct,
+            read_mutation_file(snp_pd_count_dct, snp_ppmi_dct, patno_snp_dct,
                 '%s/%s' % (wes_folder, fname))
 
     # Convert sets to lengths for count dictionary.
@@ -109,8 +115,16 @@ def write_snp_and_count_dct():
     # Dump the resulting dictionaries to file.
     with open('%s/snp_pd_count_dct_%s.json' % (results_folder, args.snp_type), 'w') as fp:
         json.dump(snp_pd_count_dct, fp)
+    fp.close()
     with open('%s/snp_ppmi_dct_%s.json' % (results_folder, args.snp_type), 'w') as fp:
         json.dump(snp_ppmi_dct, fp)
+    fp.close()
+    # Convert values from sets to lists so that they are JSON serializable.
+    for patno in patno_snp_dct:
+        patno_snp_dct[patno] = list(patno_snp_dct[patno])
+    with open('%s/patno_snp_dct_%s.json' % (results_folder, args.snp_type), 'w') as fp:
+        json.dump(patno_snp_dct, fp)
+    fp.close()
 
 def compute_fisher_value(snp):
     # This first if statement computes the HC patients.
