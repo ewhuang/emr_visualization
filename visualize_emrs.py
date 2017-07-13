@@ -179,7 +179,7 @@ def main():
         # Convert UPDRS scores to colors based on their range.
         if e < 45:
             label_lst[i] = 'white'
-        elif e < 80:
+        elif e < 70:
             label_lst[i] = 'yellow'
         else:
             label_lst[i] = 'red'

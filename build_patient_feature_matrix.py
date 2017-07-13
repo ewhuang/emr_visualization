@@ -124,6 +124,39 @@ def get_non_prosnet_feat_tuples():
         read_test_score('schwab'), read_test_score('montreal'),
         read_test_score('semantic'), read_test_score('symbol'))
 
+def read_snp_fisher_file(fname, snp_set):
+    '''
+    Given a Fisher's test file on finding significant SNPs, get the list of
+    SNPs.
+    '''
+    f = open(fname, 'r')
+    f.readline()
+    for line in f:
+        line = line.strip().split('\t')
+        snp_set.add(line[0])
+    f.close
+
+def get_mutation_dct():
+    # First, get the SNPs deemed to be significantly enriched in PD patients.
+    snp_set = set([])
+    for fname in ('snp_fisher_test_wes_ppmi', 'snp_fisher_test_wes_hard_ignore'):
+        read_snp_fisher_file('./data/ppmi/snp_files/%s.tsv' % fname, snp_set)
+        # break # TODO
+    # Next, for each SNP, get the patients that have the SNP.
+    with open('./data/ppmi/snp_files/patno_snp_dct_wes.json', 'r') as fp:
+        patno_snp_dct = json.load(fp)
+    fp.close()
+
+    # Keep only the SNPs that were deemed significant.
+    feature_set = set([])
+    for patno in patno_snp_dct:
+        patno_snp_set = snp_set.intersection(patno_snp_dct[patno])
+        # patno_snp_dct[patno] = snp_set.intersection(patno_snp_dct[patno])
+        feature_set = feature_set.union(patno_snp_set)
+        patno_snp_dct[patno] = [(snp, 1) for snp in patno_snp_set]
+
+    return patno_snp_dct, feature_set
+
 def get_prosnet_feat_tuples():
     '''
     Read each of the relevant spreadsheets that are in ProSNet.
@@ -135,7 +168,8 @@ def get_prosnet_feat_tuples():
         read_clinical_diagnosis(code_dct), read_cognitive_categorizations(),
         read_medical_conditions(), read_binary_tests('neuro'),
         read_binary_tests('pd_features'), read_binary_tests('rem_disorder'),
-        read_demographics(), read_pd_surgery(), read_binary_tests('medication'))
+        read_demographics(), read_pd_surgery(), read_binary_tests('medication'),
+        get_mutation_dct())
 
 def create_dct_lst(feat_tuples):
     '''
