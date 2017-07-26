@@ -6,7 +6,6 @@ import os
 from process_loni_parkinsons import *
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import normalize
-# import sys
 
 # This script creates the feature matrices to get ready for experiments.
 # Writes an unnormalized feature matrix, in addition to a normalized one,
@@ -53,9 +52,10 @@ def impute_missing_data(feature_matrix, master_feature_lst):
         # 450 is the last iteration number.
         if args.excl_feat == None:
             f = open('./data/prosnet_data/embed_%s_1000.txt' % args.num_dim, 'r')
-        elif args.excl_feat == 'biospecimen':
-            f = open('./data/prosnet_data/embed_%s_1000_no_biospecimen.txt'
-                % args.num_dim, 'r')
+        else:
+            print args.excl_feat
+            f = open('./data/prosnet_data/embed_%s_1000_no_%s.txt' %
+                (args.num_dim, args.excl_feat), 'r')
 
         f.readline()
         for line in f:
@@ -85,8 +85,6 @@ def impute_missing_data(feature_matrix, master_feature_lst):
 
 def write_feature_matrix(test_feat_mat, pros_feat_mat, test_feat_lst,
     pros_feat_lst, patient_lst, suffix):
-# def write_feature_matrix(feature_matrix, master_feature_lst, patient_lst,
-#     out_fname=''):
     '''
     Writes the feature matrix out to file, along with column labels. First
     column should be patno's, and the second/third column should be the
@@ -95,8 +93,10 @@ def write_feature_matrix(test_feat_mat, pros_feat_mat, test_feat_lst,
     assert len(test_feat_mat) == len(pros_feat_mat)
     if args.excl_feat == None:
         out_fname = './data/feature_matrices/feature_matrix_%s.tsv' % suffix
-    elif args.excl_feat == 'biospecimen':
-        out_fname = './data/feature_matrices/feature_matrix_%s_no_biospecimen.tsv' % suffix
+    else:
+        out_fname = './data/feature_matrices/feature_matrix_%s_no_%s.tsv' % (
+            suffix, args.excl_feat)
+
     out = open(out_fname, 'w')
     out.write('patno\t%s\t%s\n' % ('\t'.join(test_feat_lst),
         '\t'.join(pros_feat_lst)))
@@ -110,18 +110,18 @@ def write_feature_matrix(test_feat_mat, pros_feat_mat, test_feat_lst,
         out.write('%s\n' % ('\t'.join(map(str, prosnet_features))))
     out.close()
 
-def print_sparsity_info(feature_matrix):
-    '''
-    Given the feature matrix, print the average number of zeros for each
-    patient.
-    '''
-    num_zeros = 0.0
-    for row in feature_matrix:
-        for ele in row:
-            if ele == 0:
-                num_zeros += 1
-    print 'average number of zeros:', num_zeros / float(feature_matrix.shape[0])
-    print 'feature matrix shape:', feature_matrix.shape
+# def print_sparsity_info(feature_matrix):
+#     '''
+#     Given the feature matrix, print the average number of zeros for each
+#     patient.
+#     '''
+#     num_zeros = 0.0
+#     for row in feature_matrix:
+#         for ele in row:
+#             if ele == 0:
+#                 num_zeros += 1
+#     print 'average number of zeros:', num_zeros / float(feature_matrix.shape[0])
+#     print 'feature matrix shape:', feature_matrix.shape
 
 def get_non_prosnet_feat_tuples():
     '''
@@ -171,18 +171,22 @@ def get_prosnet_feat_tuples():
     '''
     code_dct = read_code_file()
 
+    biospecimen_tup = [read_test_analysis('biospecimen')]
+    symptom_tup_lst = [read_clinical_diagnosis(code_dct),
+        read_medical_conditions(), read_binary_tests('rem_disorder')]
+
     # Excluding biospecimen.
     if args.excl_feat == None:
-        tup_lst = [read_test_analysis('biospecimen')]
+        tup_lst = biospecimen_tup + symptom_tup_lst
     elif args.excl_feat == 'biospecimen':
-        tup_lst = []
+        tup_lst = symptom_tup_lst
+    elif args.excl_feat == 'symptom':
+        tup_lst = biospecimen_tup
 
     return tup_lst + [read_test_analysis('concom_medications'),
-        read_clinical_diagnosis(code_dct), read_cognitive_categorizations(),
-        read_medical_conditions(), read_binary_tests('neuro'),
-        read_binary_tests('pd_features'), read_binary_tests('rem_disorder'),
-        read_demographics(), read_pd_surgery(), read_binary_tests('medication'),
-        get_mutation_dct()]
+        read_cognitive_categorizations(), read_binary_tests('neuro'),
+        read_binary_tests('pd_features'), read_demographics(), read_pd_surgery(),
+        read_binary_tests('medication'), get_mutation_dct()]
 
 def create_dct_lst(feat_tuples):
     '''
@@ -194,50 +198,28 @@ def create_dct_lst(feat_tuples):
         feature_dct_list += [feature_dct]
         # Update the master feature list.
         for feature in feature_list:
-            # feature = '_'.join(feature.split())
             if feature not in master_feature_lst:
                 master_feature_lst += [feature]
-            else:
-                # This means that some features are repeated across different
-                # spreadsheets. TODO.
-                print feature
     return feature_dct_list, master_feature_lst
 
 def parse_args():
     global args
     parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--norm_type', help='Normalization method.',
-        required=True, choices=['max', 'l1', 'l2'])
+    # parser.add_argument('-n', '--norm_type', help='Normalization method.',
+    #     required=True, choices=['max', 'l1', 'l2'])
     parser.add_argument('-d', '--num_dim', help='Number of ProSNet dimensions',
         type=int)
     parser.add_argument('-s', '--sim_thresh', type=float,
         help='Threshold for cosine similarity between ProSNet vectors')
-    parser.add_argument('-w', '--where_norm', choices=['before', 'after', 'both'],
-        help='Where to normalize with respect to ProSNet imputation.')
-    parser.add_argument('-l', '--label_type', choices=['updrs', 'status', 'tau'],
-        help='Use the patients that have this label.')
-    parser.add_argument('-e', '--excl_feat', choices=['biospecimen'],
+    # parser.add_argument('-w', '--where_norm', choices=['before', 'after', 'both'],
+    #     help='Where to normalize with respect to ProSNet imputation.')
+    parser.add_argument('-e', '--excl_feat', choices=['biospecimen', 'symptom'],
         help='Feature types to exclude.')
     args = parser.parse_args()
 
 def main():
     parse_args()
 
-    # TODO: leaving labels out of the feature matrix.
-    label_type = args.label_type
-    if label_type == 'updrs':
-        label_dct = get_updrs_dct()[0]
-    # elif label_type == 'status': # PD, SWEDD, Healthy Control.
-    #     non_pd_patients = []
-    #     label_dct = read_patient_status()
-    #     # TODO: Take out the non-PD patients.
-    #     for patno in label_dct:
-    #         if label_dct[patno] != 'PD':
-    #             non_pd_patients += [patno]
-    #     for patno in non_pd_patients:
-    #         del label_dct[patno]
-    elif label_type == 'tau':
-        label_dct = read_total_tau()
     # Test tuples are features that are not used in the ProSNet network.
     test_feat_tuples = get_non_prosnet_feat_tuples()
     prosnet_feat_tuples = get_prosnet_feat_tuples()
@@ -245,13 +227,9 @@ def main():
     test_feat_dct_lst, test_feat_lst = create_dct_lst(test_feat_tuples)
     pros_feat_dct_lst, pros_feat_lst = create_dct_lst(prosnet_feat_tuples)
 
-    # Create the numpy array, and remove bad columns.
-    # TODO: Using intersection of PD patients and those with UPDRS scores.
-    # pd_dct = read_patient_status()
-    # pd_keys = [key for key in pd_dct if pd_dct[key] == 'PD']
-
-    # patient_lst = list(set(label_dct.keys()).intersection(pd_keys))
+    label_dct = get_updrs_dct()[0]
     patient_lst = label_dct.keys()
+
     test_feat_mat, test_feat_lst = build_feature_matrix(test_feat_dct_lst,
         test_feat_lst, patient_lst)
     pros_feat_mat, pros_feat_lst = build_feature_matrix(pros_feat_dct_lst,
@@ -261,25 +239,29 @@ def main():
     if not os.path.exists(matrix_folder):
         os.makedirs(matrix_folder)
     # Write out to file a unnormalized file.
-    write_feature_matrix(test_feat_mat, pros_feat_mat, test_feat_lst,
-        pros_feat_lst, patient_lst, 'unnorm')
+    if args.excl_feat == None:
+        write_feature_matrix(test_feat_mat, pros_feat_mat, test_feat_lst,
+            pros_feat_lst, patient_lst, 'unnorm')
 
     # Normalize feature matrix. TODO: tune type of normalization. Before or
     # after imputation?
-    test_feat_mat = normalize(test_feat_mat, norm=args.norm_type, axis=0)
-    if args.where_norm in ['before', 'both']:
-        pros_feat_mat = normalize(pros_feat_mat, norm=args.norm_type, axis=0)
+    # test_feat_mat = normalize(test_feat_mat, norm=args.norm_type, axis=0)
+    # if args.where_norm in ['before', 'both']:
+    #     pros_feat_mat = normalize(pros_feat_mat, norm=args.norm_type, axis=0)
 
     # Perform either mean imputation or embedding imputation.
     if args.num_dim != None:
         pros_feat_mat = impute_missing_data(pros_feat_mat, pros_feat_lst)
-        suffix = '%s_%s_%s_%s' % (args.norm_type, args.num_dim, args.sim_thresh,
-            args.where_norm)
+        # suffix = '%s_%s_%s_%s' % (args.norm_type, args.num_dim, args.sim_thresh,
+            # args.where_norm)
+        suffix = '%s_%s' % (args.num_dim, args.sim_thresh)
     else:
-        suffix = args.norm_type
+        suffix = 'baseline'
 
-    if args.where_norm in ['after', 'both', None]:
-        pros_feat_mat = normalize(pros_feat_mat, norm=args.norm_type, axis=0)
+    # if args.where_norm in ['after', 'both', None]:
+    #     pros_feat_mat = normalize(pros_feat_mat, norm=args.norm_type, axis=0)
+    test_feat_mat = normalize(test_feat_mat, norm='max', axis=0)
+    pros_feat_mat = normalize(pros_feat_mat, norm='max', axis=0)
 
     write_feature_matrix(test_feat_mat, pros_feat_mat, test_feat_lst,
         pros_feat_lst, patient_lst, suffix)

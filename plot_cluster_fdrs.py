@@ -54,6 +54,7 @@ def plot_method(fname, color, label):
     clus_p_lst = []
     for clus_id in clus_enrichment_dct:
         biomarker_p_lst = clus_enrichment_dct[clus_id]
+        print biomarker_p_lst
         # Sort the list of tuples by the p-values.
         curr_p_lst = sorted(biomarker_p_lst, key=lambda x:x[2])
         clus_p_lst += [curr_p_lst[0][2]]

@@ -102,27 +102,6 @@ def get_coocc_edge_set(patient_dct_a, patient_dct_b):
                     coocc_edge_set.add((node_a, node_b))
     return coocc_edge_set
 
-def run_prosnet():
-    os.chdir('./prosnet/model')
-    network_folder = '../../data/prosnet_data'
-    
-    # Sort out the file names.
-    if args.excl_feat == None:
-        node_fname = 'prosnet_node_list'
-        edge_fname = 'prosnet_edge_list'
-    else:
-        node_fname = 'prosnet_node_list_no_%s' % args.excl_feat
-        edge_fname = 'prosnet_edge_list_no_%s' % args.excl_feat
-
-    command = ('./embed -node "%s/%s.txt" -link "%s/%s.txt" '
-        '-binary 0 -size %s -negative 5 -samples 1 '
-        '-iters 1001 -threads 24 -model 2 -depth 10 -restart 0.8 '
-        '-edge_type_num %d -rwr_ppi 1 -rwr_seq 1 -train_mode 2' % (
-            network_folder, node_fname, network_folder, edge_fname,
-            args.num_dim, num_edge_types))
-    print command
-    subprocess.call(command, shell=True)
-
 def get_attributes(patient_dct_lst):
     '''
     Given a patient dictionary mapping patients to (feature, feature_freq)
@@ -172,7 +151,7 @@ def get_spreadsheet_results():
     f_tuples += [('t', test_dct)]
 
     # Symptoms.
-    if args.excl_feat != 'symptoms':
+    if args.excl_feat != 'symptom':
         code_dct = read_code_file()
         symp_dct = get_attributes([read_clinical_diagnosis(code_dct),
             read_medical_conditions(), read_binary_tests('rem_disorder')])
@@ -183,9 +162,10 @@ def get_spreadsheet_results():
     f_tuples += [('m', demo_dct)]
 
     # Drugs.
-    drug_dct = get_attributes([read_test_analysis('concom_medications'),
-        read_binary_tests('medication')])
-    f_tuples += [('d', drug_dct)]
+    if args.excl_feat != 'drug':
+        drug_dct = get_attributes([read_test_analysis('concom_medications'),
+            read_binary_tests('medication')])
+        f_tuples += [('d', drug_dct)]
 
     # Gene mutations.
     mutation_dct = get_mutation_dct()
@@ -206,13 +186,25 @@ def get_symptom_snp_edge_set():
     f.close()
     return snp_edge_set
 
+def run_prosnet(node_fname, edge_fname):
+    os.chdir('./prosnet/model')
+    network_folder = '../../data/prosnet_data'
+    
+    command = ('./embed -node "%s/%s" -link "%s/%s" -binary 0 -size %s '
+        '-negative 5 -samples 1 -iters 1001 -threads 24 -model 2 -depth 10 '
+        '-restart 0.8 -edge_type_num %d -rwr_ppi 1 -rwr_seq 1 -train_mode 2' % (
+            network_folder, node_fname, network_folder, edge_fname, args.num_dim,
+            num_edge_types))
+    print command
+    subprocess.call(command, shell=True)
+
 def parse_args():
     global args
     parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--num_dim', type=int, required=True,
+    parser.add_argument('-d', '--num_dim', type=int, required=True,
         help='Number of ProSNet dimensions.')
-    parser.add_argument('-e', '--excl_feat', choices=['biospecimen', 'symptoms'],
-        help='Feature types to exclude.')
+    parser.add_argument('-e', '--excl_feat', choices=['biospecimen', 'symptom',
+        'drug'], help='Feature types to exclude.')
     args = parser.parse_args()
 
 def main():
@@ -222,14 +214,15 @@ def main():
     if not os.path.exists(input_folder):
         os.makedirs(input_folder)
 
-    if args.excl_feat == None:
-        node_out = open('%s/prosnet_node_list.txt' % input_folder, 'w')
-        edge_out = open('%s/prosnet_edge_list.txt' % input_folder, 'w')
-    else:
-        node_out = open('%s/prosnet_node_list_no_%s.txt' % (input_folder,
-            args.excl_feat), 'w')
-        edge_out = open('%s/prosnet_edge_list_no_%s.txt' % (input_folder,
-            args.excl_feat), 'w')
+    # Determine if we need a suffix based on whether we exclude any features.
+    fname_suffix = ''
+    if args.excl_feat != None:
+        fname_suffix = '_no_' + args.excl_feat
+
+    node_fname = 'prosnet_node_list%s.txt' % fname_suffix
+    edge_fname = 'prosnet_edge_list%s.txt' % fname_suffix
+    node_out = open('%s/%s' % (input_folder, node_fname), 'w')
+    edge_out = open('%s/%s' % (input_folder, edge_fname), 'w')
 
     ppi_edge_set = get_ppi_edge_set()
     write_files(node_out, edge_out, ppi_edge_set, 'p', 'p')
@@ -258,7 +251,7 @@ def main():
     node_out.close()
 
     # Run prosnet. Outputs the low-dimensional vectors into files.
-    run_prosnet()
+    run_prosnet(node_fname, edge_fname)
 
 if __name__ == '__main__':
     main()
