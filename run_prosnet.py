@@ -162,21 +162,22 @@ def get_spreadsheet_results():
     '''
     f_tuples = []
     # Medical tests.
-    if args.excl_feat == 'biospecimen':
-        test_dct = get_attributes([read_binary_tests('neuro'),
-            read_binary_tests('pd_features'), read_cognitive_categorizations(),
-            read_pd_surgery()])
-    else:
-        test_dct = get_attributes([read_test_analysis('biospecimen'),
-            read_binary_tests('neuro'), read_binary_tests('pd_features'),
-            read_cognitive_categorizations(), read_pd_surgery()])
+    test_dct = get_attributes([read_binary_tests('neuro'), read_pd_surgery(),
+        read_binary_tests('pd_features'), read_cognitive_categorizations()])
+
+    if args.excl_feat != 'biospecimen':
+        biospecimen_dct = get_attributes([read_test_analysis('biospecimen')])
+        test_dct.update(biospecimen_dct)
+
     f_tuples += [('t', test_dct)]
+
     # Symptoms.
     if args.excl_feat != 'symptoms':
         code_dct = read_code_file()
         symp_dct = get_attributes([read_clinical_diagnosis(code_dct),
             read_medical_conditions(), read_binary_tests('rem_disorder')])
         f_tuples += [('s', symp_dct)]
+
     # Demographics.
     demo_dct = get_attributes([read_demographics()])
     f_tuples += [('m', demo_dct)]
@@ -255,7 +256,6 @@ def main():
 
     edge_out.close()
     node_out.close()
-    exit()
 
     # Run prosnet. Outputs the low-dimensional vectors into files.
     run_prosnet()

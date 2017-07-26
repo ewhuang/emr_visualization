@@ -284,8 +284,5 @@ def main():
     write_feature_matrix(test_feat_mat, pros_feat_mat, test_feat_lst,
         pros_feat_lst, patient_lst, suffix)
 
-    # print_sparsity_info(test_feat_mat)
-    # print_sparsity_info(pros_feat_mat)
-
 if __name__ == '__main__':
     main()
