@@ -145,11 +145,21 @@ def get_coocc_edge_set(patient_dct_a, patient_dct_b):
 def run_prosnet():
     os.chdir('./prosnet/model')
     network_folder = '../../data/prosnet_data'
-    command = ('./embed -node "%s/prosnet_node_list.txt" -link "%s/prosnet_'
-        'edge_list.txt" -binary 0 -size %s -negative 5 -samples 1 '
+    
+    # Sort out the file names.
+    if args.excl_feat == 'biospecimen':
+        node_fname = 'prosnet_node_list_no_biospecimen'
+        edge_fname = 'prosnet_edge_list_no_biospecimen'
+    else:
+        node_fname = 'prosnet_node_list'
+        edge_fname = 'prosnet_edge_list'
+
+    command = ('./embed -node "%s/%s.txt" -link "%s/%s.txt" '
+        '-binary 0 -size %s -negative 5 -samples 1 '
         '-iters 1001 -threads 24 -model 2 -depth 10 -restart 0.8 '
         '-edge_type_num %d -rwr_ppi 1 -rwr_seq 1 -train_mode 2' % (
-            network_folder, network_folder, args.num_dim, num_edge_types))
+            network_folder, node_fname, network_folder, edge_fname,
+            args.num_dim, num_edge_types))
     print command
     subprocess.call(command, shell=True)
 
@@ -174,8 +184,6 @@ def get_mutation_dct():
     snp_set = set([])
     for fname in ('snp_fisher_test_wes_ppmi', 'snp_fisher_test_wes_hard_ignore'):
         read_snp_fisher_file('./data/ppmi/snp_files/%s.tsv' % fname, snp_set)
-        # break # TODO
-    print len(snp_set)
     # Next, for each SNP, get the patients that have the SNP.
     with open('./data/ppmi/snp_files/patno_snp_dct_wes.json', 'r') as fp:
         patno_snp_dct = json.load(fp)
@@ -185,12 +193,6 @@ def get_mutation_dct():
     for patno in patno_snp_dct:
         patno_snp_dct[patno] = snp_set.intersection(patno_snp_dct[patno])
 
-    # snp_patient_dct = {}
-    # wes_folder = './data/annovar_annotate_output_wes_patient_info'
-    # for fname in os.listdir(wes_folder):
-    #     print fname
-    #     read_mutation_file('%s/%s' % (wes_folder, fname), snp_patient_dct, snp_set)
-        # break # TODO
     return patno_snp_dct
 
 def get_spreadsheet_results():
@@ -200,9 +202,14 @@ def get_spreadsheet_results():
     '''
     f_tuples = []
     # Medical tests.
-    test_dct = get_attributes([read_test_analysis('biospecimen'),
-        read_binary_tests('neuro'), read_binary_tests('pd_features'),
-        read_cognitive_categorizations(), read_pd_surgery()])
+    if args.excl_feat == 'biospecimen':
+        test_dct = get_attributes([read_binary_tests('neuro'),
+            read_binary_tests('pd_features'), read_cognitive_categorizations(),
+            read_pd_surgery()])
+    else:
+        test_dct = get_attributes([read_test_analysis('biospecimen'),
+            read_binary_tests('neuro'), read_binary_tests('pd_features'),
+            read_cognitive_categorizations(), read_pd_surgery()])
     f_tuples += [('t', test_dct)]
     # Symptoms.
     code_dct = read_code_file()
@@ -219,8 +226,6 @@ def get_spreadsheet_results():
     f_tuples += [('d', drug_dct)]
 
     # Gene mutations.
-    # TODO: where is the function?
-    # mutation_dct = get_attributes([read_snp_mutations()])
     mutation_dct = get_mutation_dct()
     f_tuples += [('g', mutation_dct)]
 
@@ -244,6 +249,8 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', '--num_dim', type=int, required=True,
         help='Number of ProSNet dimensions.')
+    parser.add_argument('-e', '--excl_feat', choices=['biospecimen'],
+        help='Feature types to exclude.')
     args = parser.parse_args()
 
 def main():
@@ -252,8 +259,13 @@ def main():
     input_folder = './data/prosnet_data'
     if not os.path.exists(input_folder):
         os.makedirs(input_folder)
-    node_out = open('%s/prosnet_node_list.txt' % input_folder, 'w')
-    edge_out = open('%s/prosnet_edge_list.txt' % input_folder, 'w')
+
+    if args.excl_feat == 'biospecimen':
+        node_out = open('%s/prosnet_node_list_no_biospecimen.txt' % input_folder, 'w')
+        edge_out = open('%s/prosnet_edge_list_no_biospecimen.txt' % input_folder, 'w')
+    else:
+        node_out = open('%s/prosnet_node_list.txt' % input_folder, 'w')
+        edge_out = open('%s/prosnet_edge_list.txt' % input_folder, 'w')
 
     ppi_edge_set = get_ppi_edge_set()
     write_files(node_out, edge_out, ppi_edge_set, 'p', 'p')
@@ -280,6 +292,7 @@ def main():
 
     edge_out.close()
     node_out.close()
+    exit()
 
     # Run prosnet. Outputs the low-dimensional vectors into files.
     run_prosnet()
