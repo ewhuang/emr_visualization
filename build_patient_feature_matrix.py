@@ -212,9 +212,16 @@ def main():
     label_type = args.label_type
     if label_type == 'updrs':
         label_dct = get_updrs_dct()[0]
-    elif label_dct == 'status': # PD, SWEDD, Healthy Control.
-        label_dct = read_patient_status()
-    elif label_dct == 'tau':
+    # elif label_type == 'status': # PD, SWEDD, Healthy Control.
+    #     non_pd_patients = []
+    #     label_dct = read_patient_status()
+    #     # TODO: Take out the non-PD patients.
+    #     for patno in label_dct:
+    #         if label_dct[patno] != 'PD':
+    #             non_pd_patients += [patno]
+    #     for patno in non_pd_patients:
+    #         del label_dct[patno]
+    elif label_type == 'tau':
         label_dct = read_total_tau()
     # Test tuples are features that are not used in the ProSNet network.
     test_feat_tuples = get_non_prosnet_feat_tuples()
@@ -224,6 +231,11 @@ def main():
     pros_feat_dct_lst, pros_feat_lst = create_dct_lst(prosnet_feat_tuples)
 
     # Create the numpy array, and remove bad columns.
+    # TODO: Using intersection of PD patients and those with UPDRS scores.
+    # pd_dct = read_patient_status()
+    # pd_keys = [key for key in pd_dct if pd_dct[key] == 'PD']
+
+    # patient_lst = list(set(label_dct.keys()).intersection(pd_keys))
     patient_lst = label_dct.keys()
     test_feat_mat, test_feat_lst = build_feature_matrix(test_feat_dct_lst,
         test_feat_lst, patient_lst)
