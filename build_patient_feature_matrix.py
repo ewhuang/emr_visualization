@@ -40,25 +40,30 @@ def build_feature_matrix(feature_dct_list, master_feature_lst, patient_lst):
 
     return feature_matrix[:,good_indices], master_feature_lst
 
-def impute_missing_data(feature_matrix, master_feature_lst, num_dim, sim_thresh):
+def impute_missing_data(feature_matrix, master_feature_lst):
     '''
     Given the feature matrix and the column labels (master_feature_lst), impute
     the missing feature data by getting the Prosnet vectors.
     '''
-    def read_prosnet_output(master_feature_lst, num_dim):
+    def read_prosnet_output(master_feature_lst):
         '''
         Reads the output low-dimensional vectors created by prosnet.
         '''
         vector_dct = {}
         # 450 is the last iteration number.
-        f = open('./data/prosnet_data/embed_%s_1000.txt' % num_dim, 'r')
+        if args.excl_feat == None:
+            f = open('./data/prosnet_data/embed_%s_1000.txt' % args.num_dim, 'r')
+        elif args.excl_feat == 'biospecimen':
+            f = open('./data/prosnet_data/embed_%s_1000_no_biospecimen.txt'
+                % args.num_dim, 'r')
+
         f.readline()
         for line in f:
             line = line.split()
             feature, vector = line[0], map(float, line[1:])
             while '_' in feature:
                 feature = feature.replace('_', ' ')
-            assert len(vector) == int(num_dim) and feature not in vector_dct
+            assert len(vector) == int(args.num_dim) and feature not in vector_dct
             vector_dct[feature] = vector
         f.close()
         # Reorganize the matrix according to the order of master_feature_lst.
@@ -67,10 +72,10 @@ def impute_missing_data(feature_matrix, master_feature_lst, num_dim, sim_thresh)
             vector_matrix += [vector_dct[feature]]
         return np.array(vector_matrix)
 
-    vector_matrix = read_prosnet_output(master_feature_lst, num_dim)
+    vector_matrix = read_prosnet_output(master_feature_lst)
     similarity_matrix = np.abs(cosine_similarity(vector_matrix))
 
-    similarity_matrix[similarity_matrix < sim_thresh] = 0
+    similarity_matrix[similarity_matrix < args.sim_thresh] = 0
     np.fill_diagonal(similarity_matrix, 1)
 
     # Multiply the feature matrix and the similarity matrix.
@@ -88,7 +93,10 @@ def write_feature_matrix(test_feat_mat, pros_feat_mat, test_feat_lst,
     death/time event.
     '''
     assert len(test_feat_mat) == len(pros_feat_mat)
-    out_fname = './data/feature_matrices/feature_matrix_%s.tsv' % suffix
+    if args.excl_feat == None:
+        out_fname = './data/feature_matrices/feature_matrix_%s.tsv' % suffix
+    elif args.excl_feat == 'biospecimen':
+        out_fname = './data/feature_matrices/feature_matrix_%s_no_biospecimen.tsv' % suffix
     out = open(out_fname, 'w')
     out.write('patno\t%s\t%s\n' % ('\t'.join(test_feat_lst),
         '\t'.join(pros_feat_lst)))
@@ -162,14 +170,19 @@ def get_prosnet_feat_tuples():
     Read each of the relevant spreadsheets that are in ProSNet.
     '''
     code_dct = read_code_file()
-    # Make sure SNP mutations comes before biospecimen, since they share feature 'APP'.
-    # return (read_snp_mutations(), read_test_analysis('biospecimen'),
-    return (read_test_analysis('biospecimen'), read_test_analysis('concom_medications'),
+
+    # Excluding biospecimen.
+    if args.excl_feat == None:
+        tup_lst = [read_test_analysis('biospecimen')]
+    elif args.excl_feat == 'biospecimen':
+        tup_lst = []
+
+    return tup_lst + [read_test_analysis('concom_medications'),
         read_clinical_diagnosis(code_dct), read_cognitive_categorizations(),
         read_medical_conditions(), read_binary_tests('neuro'),
         read_binary_tests('pd_features'), read_binary_tests('rem_disorder'),
         read_demographics(), read_pd_surgery(), read_binary_tests('medication'),
-        get_mutation_dct())
+        get_mutation_dct()]
 
 def create_dct_lst(feat_tuples):
     '''
@@ -191,6 +204,7 @@ def create_dct_lst(feat_tuples):
     return feature_dct_list, master_feature_lst
 
 def parse_args():
+    global args
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', '--norm_type', help='Normalization method.',
         required=True, choices=['max', 'l1', 'l2'])
@@ -202,11 +216,12 @@ def parse_args():
         help='Where to normalize with respect to ProSNet imputation.')
     parser.add_argument('-l', '--label_type', choices=['updrs', 'status', 'tau'],
         help='Use the patients that have this label.')
+    parser.add_argument('-e', '--excl_feat', choices=['biospecimen'],
+        help='Feature types to exclude.')
     args = parser.parse_args()
-    return args
 
 def main():
-    args = parse_args()
+    parse_args()
 
     # TODO: leaving labels out of the feature matrix.
     label_type = args.label_type
@@ -257,8 +272,7 @@ def main():
 
     # Perform either mean imputation or embedding imputation.
     if args.num_dim != None:
-        pros_feat_mat = impute_missing_data(pros_feat_mat, pros_feat_lst,
-            args.num_dim, float(args.sim_thresh))
+        pros_feat_mat = impute_missing_data(pros_feat_mat, pros_feat_lst)
         suffix = '%s_%s_%s_%s' % (args.norm_type, args.num_dim, args.sim_thresh,
             args.where_norm)
     else:

@@ -53,7 +53,11 @@ def read_feature_matrix(suffix):
     # feature_matrix, label_lst, master_feature_list = [], [], []
     feature_matrix, patient_lst = [], []
 
-    fname = './data/feature_matrices/feature_matrix_%s.tsv' % suffix
+    if args.excl_feat == 'None' or suffix == 'unnorm':
+        fname = './data/feature_matrices/feature_matrix_%s.tsv' % suffix
+    elif args.excl_feat == 'biospecimen':
+        fname = './data/feature_matrices/feature_matrix_%s_no_biospecimen.tsv' % suffix
+
     f = open(fname, 'r')
     header = f.readline().strip().split('\t')
     for line in f:
@@ -91,6 +95,8 @@ def parse_args():
         required=True, choices=['pca', 'random'])
     parser.add_argument('-r', '--l_rate', help='learning rate of t-SNE',
         required=True, type=int)
+    parser.add_argument('-e', '--excl_feat', choices=['biospecimen'],
+        help='Feature types to exclude.')
     # parser.add_argument('-k', '--knn', help='number of nearest neighbors')
     args = parser.parse_args()
 
@@ -134,6 +140,14 @@ def get_symptom_drug_set():
     symptom_drug_set = symptom_drug_set.union(read_test_analysis('concom_medications')[1])
     symptom_drug_set = symptom_drug_set.union(read_binary_tests('medication')[1])
     return symptom_drug_set
+
+def get_biospecimen_set():
+    '''
+    Gets the set of biospecimen names from the PPMI dataset.
+    '''
+    biospecimen_set = set([])
+    biospecimen_set = biospecimen_set.union(read_test_analysis('biospecimen')[1])
+    return biospecimen_set
 
 def compute_cluster_enrichment(clus_feat_matrix, non_clus_feat_matrix, feat_idx):
     '''
@@ -192,7 +206,12 @@ def feature_analysis(feature_matrix, fname):
     # Read the base feature matrix for feature analysis.
     base_feature_matrix, feature_lst, patient_lst = read_feature_matrix('unnorm')
 
-    symptom_drug_set = get_symptom_drug_set()
+    if args.excl_feat == None:
+        enrichment_set = get_symptom_drug_set()
+    elif args.excl_feat == 'biospecimen':
+        enrichment_set = get_biospecimen_set()
+
+    print enrichment_set
 
     clus_feat_enrich_dct = {}
     for i in range(n_clusters):
@@ -207,19 +226,26 @@ def feature_analysis(feature_matrix, fname):
 
         # Perform the enrichment analysis for each feature.
         for feat_idx, feature in enumerate(feature_lst):
-            if feature not in symptom_drug_set:
+            if feature not in enrichment_set:
                 continue
+            print feature
             p_value, f_table = compute_cluster_enrichment(clus_feat_matrix, non_clus_feat_matrix, feat_idx)
             # TODO: Currently writing out all things.
             # if p_value < 0.01:
             clus_feat_enrich_dct[i] += [(feature, f_table, p_value)]
     # return clus_feat_enrich_dct
-    with open('./results/biomarker_enrichments/%s.json' % fname, 'w') as fp:
-        json.dump(clus_feat_enrich_dct, fp)
-
+    if args.excl_feat == None:
+        with open('./results/biomarker_enrichments/%s.json' % fname, 'w') as fp:
+            json.dump(clus_feat_enrich_dct, fp)
+        out = open('./results/color_biomarker_mappings/%s.txt' % fname, 'w')
+    elif args.excl_feat == 'biospecimen':
+        with open('./results/biomarker_enrichments/%s_biospecimen.json' % fname, 'w') as fp:
+            json.dump(clus_feat_enrich_dct, fp)
+        out = open('./results/color_biomarker_mappings/%s_biospecimen.txt' % fname, 'w')
+    # TODO: exiting here for now.
+    exit()
     tableau20 = plot_dbscan_clusters(feature_matrix, labels)
     # TODO: figure out top symptom for each cluster.
-    out = open('./results/color_biomarker_mappings/%s.txt' % fname, 'w')
     # for clus_idx, (r, g, b) in enumerate(tableau20):
     for clus_idx in clus_feat_enrich_dct:
         # color = tuple([rgb * 255 for rgb in color_map_dct[clus_idx]])

@@ -56,14 +56,13 @@ def plot_method(fname, color, label):
         biomarker_p_lst = clus_enrichment_dct[clus_id]
         # Sort the list of tuples by the p-values.
         curr_p_lst = sorted(biomarker_p_lst, key=lambda x:x[2])
-        print curr_p_lst[:20]
-        # Keep going until a tuple matches the best p-value for that biomarker.
-        for biomarker, f_table, p_value in curr_p_lst:
-            if bm_best_p_dct[biomarker] == p_value:
-                clus_p_lst += [p_value]
-                break
-
-    print len(clus_p_lst)
+        clus_p_lst += [curr_p_lst[0][2]]
+        # print curr_p_lst[:20]
+        # # Keep going until a tuple matches the best p-value for that biomarker.
+        # for biomarker, f_table, p_value in curr_p_lst:
+        #     if bm_best_p_dct[biomarker] == p_value:
+        #         clus_p_lst += [p_value]
+        #         break
 
     plot_point_lst = []
     for fdr in np.arange(0, 0.06, 0.001):
@@ -111,7 +110,7 @@ def main():
     plt.text(0.05, n_pros_clus, 'ProSNet', fontsize=14, color='#7CAE00')
 
     plt.show()
-    plt.savefig('./results/biomarker_enrichments/fdr_plot.pdf')
+    plt.savefig('./results/biomarker_enrichments/fdr_plot.png')
     plt.close()
 
 if __name__ == '__main__':

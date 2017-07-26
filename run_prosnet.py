@@ -13,46 +13,6 @@ import sys
 # Records the set of nodes already written to file. Also unique number of edges.
 global_node_set, global_edge_set, num_edge_types = set([]), set([]), 0
 
-# def get_entrez_to_hgnc_dct():
-#     '''
-#     Gets mappings from HGNC ID's to Entrez ID's.
-#     '''
-#     entrez_to_hgnc_dct = {}
-#     f = open('./data/hgnc_to_entrez.txt', 'r')
-#     for i, line in enumerate(f):
-#         if i == 0:
-#             continue
-#         line = line.strip().split('\t')
-#         if len(line) != 2:
-#             continue
-#         hgnc_id, entrez_id = line
-#         assert entrez_id not in entrez_to_hgnc_dct
-#         entrez_to_hgnc_dct[entrez_id] = hgnc_id
-#     f.close()
-#     return entrez_to_hgnc_dct
-
-# def get_ppi_edge_set():
-#     '''
-#     Get the protein-protein edge set from a PPI network.
-#     '''
-#     entrez_to_hgnc_dct = get_entrez_to_hgnc_dct()
-
-#     ppi_edge_set = set([])
-#     # Gene ID's in this PPI network are Entrez ID's.
-#     f = open('./data/HumanNet.v1.benchmark.txt', 'r')
-#     for line in f:
-#         line = line.split()
-#         assert len(line) == 2
-#         node_a, node_b = line
-#         # Skip if no HGNC analogues.
-#         if node_a not in entrez_to_hgnc_dct or node_b not in entrez_to_hgnc_dct:
-#             continue
-#         # Translate the Entrez ID to HGNC protein.
-#         ppi_edge_set.add((entrez_to_hgnc_dct[node_a],
-#             entrez_to_hgnc_dct[node_b]))
-#     f.close()
-#     return ppi_edge_set
-
 def get_ppi_edge_set():
     '''
     Get the protein-protein edge set from a PPI network.
@@ -147,12 +107,12 @@ def run_prosnet():
     network_folder = '../../data/prosnet_data'
     
     # Sort out the file names.
-    if args.excl_feat == 'biospecimen':
-        node_fname = 'prosnet_node_list_no_biospecimen'
-        edge_fname = 'prosnet_edge_list_no_biospecimen'
-    else:
+    if args.excl_feat == None:
         node_fname = 'prosnet_node_list'
         edge_fname = 'prosnet_edge_list'
+    else:
+        node_fname = 'prosnet_node_list_no_%s' % args.excl_feat
+        edge_fname = 'prosnet_edge_list_no_%s' % args.excl_feat
 
     command = ('./embed -node "%s/%s.txt" -link "%s/%s.txt" '
         '-binary 0 -size %s -negative 5 -samples 1 '
@@ -212,10 +172,11 @@ def get_spreadsheet_results():
             read_cognitive_categorizations(), read_pd_surgery()])
     f_tuples += [('t', test_dct)]
     # Symptoms.
-    code_dct = read_code_file()
-    symp_dct = get_attributes([read_clinical_diagnosis(code_dct),
-        read_medical_conditions(), read_binary_tests('rem_disorder')])
-    f_tuples += [('s', symp_dct)]
+    if args.excl_feat != 'symptoms':
+        code_dct = read_code_file()
+        symp_dct = get_attributes([read_clinical_diagnosis(code_dct),
+            read_medical_conditions(), read_binary_tests('rem_disorder')])
+        f_tuples += [('s', symp_dct)]
     # Demographics.
     demo_dct = get_attributes([read_demographics()])
     f_tuples += [('m', demo_dct)]
@@ -249,7 +210,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', '--num_dim', type=int, required=True,
         help='Number of ProSNet dimensions.')
-    parser.add_argument('-e', '--excl_feat', choices=['biospecimen'],
+    parser.add_argument('-e', '--excl_feat', choices=['biospecimen', 'symptoms'],
         help='Feature types to exclude.')
     args = parser.parse_args()
 
@@ -260,12 +221,14 @@ def main():
     if not os.path.exists(input_folder):
         os.makedirs(input_folder)
 
-    if args.excl_feat == 'biospecimen':
-        node_out = open('%s/prosnet_node_list_no_biospecimen.txt' % input_folder, 'w')
-        edge_out = open('%s/prosnet_edge_list_no_biospecimen.txt' % input_folder, 'w')
-    else:
+    if args.excl_feat == None:
         node_out = open('%s/prosnet_node_list.txt' % input_folder, 'w')
         edge_out = open('%s/prosnet_edge_list.txt' % input_folder, 'w')
+    else:
+        node_out = open('%s/prosnet_node_list_no_%s.txt' % (input_folder,
+            args.excl_feat), 'w')
+        edge_out = open('%s/prosnet_edge_list_no_%s.txt' % (input_folder,
+            args.excl_feat), 'w')
 
     ppi_edge_set = get_ppi_edge_set()
     write_files(node_out, edge_out, ppi_edge_set, 'p', 'p')
