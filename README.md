@@ -35,9 +35,8 @@
 2.  Build the patient feature matrices for baseline as well as normal run.
 
     ```bash
-    python build_patient_feature_matrix.py [-h] -n {max,l1,l2} [-d NUM_DIM]
-                                       [-s SIM_THRESH] [-w {before,after,both}]
-                                       [-l {updrs,status,tau}] [-e {biospecimen}]
+    python build_patient_feature_matrix.py [-h] [-d NUM_DIM] [-s SIM_THRESH]
+                                       [-e {biospecimen,symptom,drug}]
     ```
     Only -n and -l are required.
 

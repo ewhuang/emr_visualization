@@ -84,8 +84,8 @@ def parse_args():
     #     required=True, choices=['pca', 'random'])
     # parser.add_argument('-r', '--l_rate', help='learning rate of t-SNE',
     #     required=True, type=int)
-    parser.add_argument('-e', '--excl_feat', choices=['biospecimen', 'symptom'],
-        help='Feature types to exclude.')
+    parser.add_argument('-e', '--excl_feat', choices=['biospecimen', 'symptom',
+        'drug'], help='Feature types to exclude.')
     # parser.add_argument('-k', '--knn', help='number of nearest neighbors')
     args = parser.parse_args()
 
@@ -115,6 +115,12 @@ def get_symptom_set():
     symptom_set = symptom_set.union(read_medical_conditions()[1])
     symptom_set = symptom_set.union(read_binary_tests('rem_disorder')[1])
     return symptom_set
+
+def get_drug_set():
+    drug_set = set([])
+    drug_set = drug_set.union(read_test_analysis('concom_medications')[1])
+    drug_set = drug_set.union(read_binary_tests('medication')[1])
+    return drug_set
 
 def compute_cluster_enrichment(clus_feat_matrix, non_clus_feat_matrix, feat_idx):
     '''
@@ -184,6 +190,8 @@ def feature_analysis(feature_matrix, fname, patient_lst):
         enrichment_set = get_biospecimen_set()
     elif args.excl_feat == 'symptom':
         enrichment_set = get_symptom_set()
+    elif args.excl_feat == 'drug':
+        enrichment_set = get_drug_set()
 
     clus_feat_enrich_dct = {}
     for i in range(n_clusters):

@@ -151,7 +151,7 @@ def get_spreadsheet_results():
     f_tuples += [('t', test_dct)]
 
     # Symptoms.
-    if args.excl_feat != 'symptom':
+    if args.excl_feat not in ['symptom', 'both']:
         code_dct = read_code_file()
         symp_dct = get_attributes([read_clinical_diagnosis(code_dct),
             read_medical_conditions(), read_binary_tests('rem_disorder')])
@@ -162,7 +162,7 @@ def get_spreadsheet_results():
     f_tuples += [('m', demo_dct)]
 
     # Drugs.
-    if args.excl_feat != 'drug':
+    if args.excl_feat not in ['drug', 'both']:
         drug_dct = get_attributes([read_test_analysis('concom_medications'),
             read_binary_tests('medication')])
         f_tuples += [('d', drug_dct)]
@@ -204,7 +204,7 @@ def parse_args():
     parser.add_argument('-d', '--num_dim', type=int, required=True,
         help='Number of ProSNet dimensions.')
     parser.add_argument('-e', '--excl_feat', choices=['biospecimen', 'symptom',
-        'drug'], help='Feature types to exclude.')
+        'drug', 'both'], help='Feature types to exclude.')
     args = parser.parse_args()
 
 def main():

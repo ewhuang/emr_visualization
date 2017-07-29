@@ -49,7 +49,6 @@ def impute_missing_data(feature_matrix, master_feature_lst):
         Reads the output low-dimensional vectors created by prosnet.
         '''
         vector_dct = {}
-        # 450 is the last iteration number.
         if args.excl_feat == None:
             f = open('./data/prosnet_data/embed_%s_1000.txt' % args.num_dim, 'r')
         else:
@@ -91,11 +90,11 @@ def write_feature_matrix(test_feat_mat, pros_feat_mat, test_feat_lst,
     death/time event.
     '''
     assert len(test_feat_mat) == len(pros_feat_mat)
-    if args.excl_feat == None:
-        out_fname = './data/feature_matrices/feature_matrix_%s.tsv' % suffix
-    else:
-        out_fname = './data/feature_matrices/feature_matrix_%s_no_%s.tsv' % (
-            suffix, args.excl_feat)
+    # if args.excl_feat == None:
+    out_fname = './data/feature_matrices/feature_matrix_%s.tsv' % suffix
+    # else:
+    #     out_fname = './data/feature_matrices/feature_matrix_%s_no_%s.tsv' % (
+    #         suffix, args.excl_feat)
 
     out = open(out_fname, 'w')
     out.write('patno\t%s\t%s\n' % ('\t'.join(test_feat_lst),
@@ -174,19 +173,22 @@ def get_prosnet_feat_tuples():
     biospecimen_tup = [read_test_analysis('biospecimen')]
     symptom_tup_lst = [read_clinical_diagnosis(code_dct),
         read_medical_conditions(), read_binary_tests('rem_disorder')]
+    drug_tup_lst = [read_test_analysis('concom_medications'), read_binary_tests(
+        'medication')]
 
     # Excluding biospecimen.
     if args.excl_feat == None:
-        tup_lst = biospecimen_tup + symptom_tup_lst
+        tup_lst = biospecimen_tup + symptom_tup_lst + drug_tup_lst
     elif args.excl_feat == 'biospecimen':
-        tup_lst = symptom_tup_lst
+        tup_lst = symptom_tup_lst + drug_tup_lst
     elif args.excl_feat == 'symptom':
-        tup_lst = biospecimen_tup
+        tup_lst = biospecimen_tup + drug_tup_lst
+    elif args.excl_feat == 'drug':
+        tup_lst = biospecimen_tup + symptom_tup_lst
 
-    return tup_lst + [read_test_analysis('concom_medications'),
-        read_cognitive_categorizations(), read_binary_tests('neuro'),
+    return tup_lst + [read_cognitive_categorizations(), read_binary_tests('neuro'),
         read_binary_tests('pd_features'), read_demographics(), read_pd_surgery(),
-        read_binary_tests('medication'), get_mutation_dct()]
+        get_mutation_dct()]
 
 def create_dct_lst(feat_tuples):
     '''
@@ -213,8 +215,8 @@ def parse_args():
         help='Threshold for cosine similarity between ProSNet vectors')
     # parser.add_argument('-w', '--where_norm', choices=['before', 'after', 'both'],
     #     help='Where to normalize with respect to ProSNet imputation.')
-    parser.add_argument('-e', '--excl_feat', choices=['biospecimen', 'symptom'],
-        help='Feature types to exclude.')
+    parser.add_argument('-e', '--excl_feat', choices=['biospecimen', 'symptom',
+        'drug'], help='Feature types to exclude.')
     args = parser.parse_args()
 
 def main():
@@ -257,6 +259,8 @@ def main():
         suffix = '%s_%s' % (args.num_dim, args.sim_thresh)
     else:
         suffix = 'baseline'
+    if args.excl_feat != None:
+        suffix += '_no_%s' % args.excl_feat
 
     # if args.where_norm in ['after', 'both', None]:
     #     pros_feat_mat = normalize(pros_feat_mat, norm=args.norm_type, axis=0)
