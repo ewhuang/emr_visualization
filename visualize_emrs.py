@@ -85,7 +85,7 @@ def parse_args():
     # parser.add_argument('-r', '--l_rate', help='learning rate of t-SNE',
     #     required=True, type=int)
     parser.add_argument('-e', '--excl_feat', choices=['biospecimen', 'symptom',
-        'drug'], help='Feature types to exclude.')
+        'drug', 'both'], help='Feature types to exclude.')
     # parser.add_argument('-k', '--knn', help='number of nearest neighbors')
     args = parser.parse_args()
 
@@ -184,7 +184,7 @@ def feature_analysis(feature_matrix, fname, patient_lst):
     base_feature_matrix, feature_lst, base_patient_lst = read_feature_matrix('unnorm')
     assert patient_lst == base_patient_lst
 
-    if args.excl_feat == None:
+    if args.excl_feat in [None, 'both']:
         enrichment_set = get_symptom_drug_set()
     elif args.excl_feat == 'biospecimen':
         enrichment_set = get_biospecimen_set()
@@ -264,7 +264,7 @@ def plot_embeddings(feature_matrix, label_lst):
             'REM sleep disorder\nEnlarged prostate', 'Parkinsonism\nHypertension',
             'Corrective lens user\nHypertension', 'Pregnancy\nPolycystic ovaries',
             'Hormone replacement therapy\nCaesarean section', 'Parkinsonism\nParkinson\'s disease',
-            'Hypertension\nHypercholesterolaemia', 'Refraction disorder\nParkinsonism',
+            'Hypertension\nHypercholesterolaemia', 'Refraction disorder\nHouse dust allergy',
             'Apathy\nCoronary artery disease')
     else:
         sympt_lst = ('Extremity pain\nImpaired glucose tolerance',

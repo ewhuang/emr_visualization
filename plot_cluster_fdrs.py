@@ -50,15 +50,15 @@ def plot_method(fname, color, label):
             if biomarker in bm_best_p_dct:
                 p_value = min(p_value, bm_best_p_dct[biomarker])
             bm_best_p_dct[biomarker] = p_value
-
+    print len(clus_enrichment_dct)
     clus_p_lst = []
     for clus_id in clus_enrichment_dct:
         biomarker_p_lst = clus_enrichment_dct[clus_id]
-        print biomarker_p_lst
+        # print biomarker_p_lst
         # Sort the list of tuples by the p-values.
         curr_p_lst = sorted(biomarker_p_lst, key=lambda x:x[2])
         clus_p_lst += [curr_p_lst[0][2]]
-        # print curr_p_lst[:20]
+        print curr_p_lst[:50]
         # # Keep going until a tuple matches the best p-value for that biomarker.
         # for biomarker, f_table, p_value in curr_p_lst:
         #     if bm_best_p_dct[biomarker] == p_value:
@@ -82,10 +82,10 @@ def main():
     n_base_clus = plot_method(args.baseline_clus_fname, '#00BFC4', 'baseline')
 
     # Plot settings.
-    plt.ylim(0, 20)
+    plt.ylim(0, 40)
     plt.xlim(0, 0.05)
     # plt.legend(loc='lower right')
-    plt.text(0.025, 21, 'FDR of Each Method\'s Biomarker Enrichments', fontsize=17,
+    plt.text(0.025, 41, 'FDR of Each Method\'s Biomarker Enrichments', fontsize=17,
         ha='center')
     plt.xlabel('False Discovery Rate')
     plt.ylabel('Number of Biomarker-Enriched Clusters')
@@ -101,7 +101,7 @@ def main():
     # Ticks on the right and top of the plot are generally unnecessary chartjunk.    
     ax.get_xaxis().tick_bottom()    
     ax.get_yaxis().tick_left()    
-    for y in range(5, 21, 5):    
+    for y in range(5, 41, 5):    
         plt.plot(np.arange(0, 2), [y] * len(np.arange(0, 2)), "--", lw=0.5, color="black", alpha=0.3)    
     # Remove the tick marks; they are unnecessary with the tick lines we just plotted.    
     plt.tick_params(axis="both", which="both", bottom="off", top="off",    
@@ -111,7 +111,7 @@ def main():
     plt.text(0.05, n_pros_clus, 'ProSNet', fontsize=14, color='#7CAE00')
 
     plt.show()
-    plt.savefig('./results/biomarker_enrichments/fdr_plot.png')
+    plt.savefig('./results/biomarker_enrichments/fdr_plot.pdf')
     plt.close()
 
 if __name__ == '__main__':

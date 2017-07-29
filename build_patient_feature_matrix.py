@@ -176,7 +176,7 @@ def get_prosnet_feat_tuples():
     drug_tup_lst = [read_test_analysis('concom_medications'), read_binary_tests(
         'medication')]
 
-    # Excluding biospecimen.
+    # Excluding features.
     if args.excl_feat == None:
         tup_lst = biospecimen_tup + symptom_tup_lst + drug_tup_lst
     elif args.excl_feat == 'biospecimen':
@@ -185,6 +185,8 @@ def get_prosnet_feat_tuples():
         tup_lst = biospecimen_tup + drug_tup_lst
     elif args.excl_feat == 'drug':
         tup_lst = biospecimen_tup + symptom_tup_lst
+    elif args.excl_feat == 'both':
+        tup_lst = biospecimen_tup
 
     return tup_lst + [read_cognitive_categorizations(), read_binary_tests('neuro'),
         read_binary_tests('pd_features'), read_demographics(), read_pd_surgery(),
@@ -216,7 +218,7 @@ def parse_args():
     # parser.add_argument('-w', '--where_norm', choices=['before', 'after', 'both'],
     #     help='Where to normalize with respect to ProSNet imputation.')
     parser.add_argument('-e', '--excl_feat', choices=['biospecimen', 'symptom',
-        'drug'], help='Feature types to exclude.')
+        'drug', 'both'], help='Feature types to exclude.')
     args = parser.parse_args()
 
 def main():
