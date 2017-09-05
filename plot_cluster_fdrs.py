@@ -78,37 +78,40 @@ def main():
 
     plt.figure(figsize=(10, 7.5))
 
-    n_pros_clus = plot_method(args.prosnet_clus_fname, '#7CAE00', 'prosnet')
-    n_base_clus = plot_method(args.baseline_clus_fname, '#00BFC4', 'baseline')
+    n_pros_clus = plot_method(args.prosnet_clus_fname, '#7CAE00', 'VisAGE')
+    n_base_clus = plot_method(args.baseline_clus_fname, '#00BFC4', 'Baseline')
 
     # Plot settings.
     plt.ylim(0, 40)
-    plt.xlim(0, 0.05)
+    plt.xlim(0, 0.01)
     # plt.legend(loc='lower right')
-    plt.text(0.025, 41, 'FDR of Each Method\'s Biomarker Enrichments', fontsize=17,
+    plt.text(0.005, 41, 'A Comparison of Drug and Symptom Enrichments', fontsize=17,
         ha='center')
     plt.xlabel('False Discovery Rate')
     plt.ylabel('Number of Biomarker-Enriched Clusters')
 
     # Experimenting with plot prettiness.
-    # Remove the plot frame lines. They are unnecessary chartjunk.    
+    # Remove the plot frame lines. They are unnecessary chartjunk.
     ax = plt.subplot(111)
     ax.spines["top"].set_visible(False)
     ax.spines["bottom"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.spines["left"].set_visible(False)
-    # Ensure that the axis ticks only show up on the bottom and left of the plot.    
-    # Ticks on the right and top of the plot are generally unnecessary chartjunk.    
-    ax.get_xaxis().tick_bottom()    
-    ax.get_yaxis().tick_left()    
-    for y in range(5, 41, 5):    
-        plt.plot(np.arange(0, 2), [y] * len(np.arange(0, 2)), "--", lw=0.5, color="black", alpha=0.3)    
+    # Ensure that the axis ticks only show up on the bottom and left of the plot.
+    # Ticks on the right and top of the plot are generally unnecessary chartjunk.
+    ax.get_xaxis().tick_bottom()
+    ax.get_yaxis().tick_left()
+    for y in range(5, 41, 5):
+        plt.plot(np.arange(0, 2), [y] * len(np.arange(0, 2)), "--", lw=0.5, color="black", alpha=0.3)
     # Remove the tick marks; they are unnecessary with the tick lines we just plotted.    
-    plt.tick_params(axis="both", which="both", bottom="off", top="off",    
-                labelbottom="on", left="off", right="off", labelleft="on")    
+    plt.tick_params(axis="both", which="both", bottom="off", top="off",
+                labelbottom="on", left="off", right="off", labelleft="on")
 
-    plt.text(0.05, n_base_clus, 'baseline', fontsize=14, color='#00BFC4')
-    plt.text(0.05, n_pros_clus, 'ProSNet', fontsize=14, color='#7CAE00')
+    # plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=20)
+    plt.legend(loc='lower right', fontsize=20)
+
+    # plt.text(0.05, n_base_clus, 'baseline', fontsize=14, color='#00BFC4')
+    # plt.text(0.05, n_pros_clus, 'ProSNet', fontsize=14, color='#7CAE00')
 
     plt.show()
     plt.savefig('./results/biomarker_enrichments/fdr_plot.pdf')

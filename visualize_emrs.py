@@ -32,7 +32,8 @@ for i, (r, g, b) in enumerate(tableau20):
     tableau20[i] = (r / 255., g / 255., b / 255.)
 
 # These are the "Tableau 20" colors as RGB.
-traffic_light = [(216, 37, 38), (255, 193, 86), (159, 205, 153)]
+# traffic_light = [(216, 37, 38), (255, 193, 86), (159, 205, 153)]
+traffic_light = [(240, 59, 32), (254, 178, 76), (255, 237, 160)]
 for i in range(len(traffic_light)):
     r, g, b = traffic_light[i]
     traffic_light[i] = (r / 255., g / 255., b / 255.)
@@ -346,7 +347,9 @@ def plot_updrs(feature_matrix, label_lst):
         plt.xlim(-17, 12)
         plt.ylim(-9.5,13.5)
 
-    plt.legend(loc='upper left', scatterpoints=1, fontsize=20, framealpha=0.5)
+    # plt.legend(loc='upper left', scatterpoints=1, fontsize=20, framealpha=0.5)
+    plt.legend(loc='center left', scatterpoints=1, bbox_to_anchor=(1, 0.5),
+        fontsize=20)
 
     plt.axis('off')
     plt.tight_layout()
@@ -376,6 +379,11 @@ def main():
         suffix += '_no_%s' % args.excl_feat
 
     feature_matrix, feature_lst, patient_lst = read_feature_matrix(suffix)
+    # # TODO 
+    # print feature_matrix.shape
+    # print np.count_nonzero(feature_matrix) / float(len(feature_matrix))
+    # exit()
+    # # TODO
     feature_matrix = reduce_feature_matrix(feature_matrix)
 
     # fname = '%s_%s_%s_%s' % (suffix, args.n_pca_comp, args.tsne_init,

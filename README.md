@@ -36,19 +36,27 @@
 
     ```bash
     python build_patient_feature_matrix.py [-h] [-d NUM_DIM] [-s SIM_THRESH]
-                                       [-e {biospecimen,symptom,drug}]
+                                       [-e {biospecimen,symptom,drug,both}]
     ```
     Only -n and -l are required.
+
+    Best matrix:
+    ```bash
+    python build_patient_feature_matrix.py -d 500 -s 0.14
+    ```
 
 ## Reducing dimensionality and visualizing the EMRs.
 
 1.  
     ```bash
-    python visualize_emrs.py [-h] [-n NORM_TYPE] [-d NUM_DIM] [-s SIM_THRESH]
-                                [-w WHERE_NORM] [-p N_PCA_COMP] [-t TSNE_INIT]
-                                [-r L_RATE] [-k KNN]
+    python visualize_emrs.py [-h] [-d NUM_DIM] [-s SIM_THRESH]
+                        [-e {biospecimen,symptom,drug,both}]                                
     ```
-    -n, -p, -t required.
+
+    Best visualization.
+    ```bash
+    python visualize_emrs.py -d 500 -s 0.14
+    ```
 
 ## Extra scripts for looking at the data.
 
